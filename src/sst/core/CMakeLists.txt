@@ -95,6 +95,7 @@ add_library(
   statapi/statoutputjson.cc
   statapi/statbase.cc
   cputimer.cc
+  stringize.cc
   iouse.cc)
 
 set(SSTHeaders

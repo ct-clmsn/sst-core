@@ -13,6 +13,7 @@
 
 #include "sst/core/baseComponent.h"
 
+#include "sst/core/stringize.h"
 #include "sst/core/component.h"
 #include "sst/core/configGraph.h"
 #include "sst/core/factory.h"
@@ -22,7 +23,6 @@
 #include "sst/core/profile/eventHandlerProfileTool.h"
 #include "sst/core/simulation_impl.h"
 #include "sst/core/statapi/statoutput.h"
-#include "sst/core/stringize.h"
 #include "sst/core/subcomponent.h"
 #include "sst/core/timeConverter.h"
 #include "sst/core/timeLord.h"
@@ -604,12 +604,12 @@ BaseComponent::vfatal(
 
     std::string new_format;
 
-    new_format = format_string(
+    new_format = SST::format_string(
         "\nElement name: %s,  type: %s (full type tree: %s)\n%s", name.c_str(), type.c_str(), type_tree.c_str(),
         format);
 
     std::string buf;
-    buf = format_string(new_format.c_str(), arg);
+    buf = SST::format_string(new_format.c_str(), arg);
     abort.fatal(line, file, func, exit_code, "%s", buf.c_str());
 }
 

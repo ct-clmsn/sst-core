@@ -23,6 +23,7 @@ DISABLE_WARN_MISSING_OVERRIDE
 REENABLE_WARNING
 #endif
 
+#include "sst/core/stringize.h"
 #include "sst/core/activity.h"
 #include "sst/core/config.h"
 #include "sst/core/configGraph.h"
