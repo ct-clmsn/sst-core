@@ -27,8 +27,26 @@
 #include <cinttypes>
 #include <cstdio>
 #include <stdarg.h>
-#include <thread>
 #include <unordered_map>
+
+#if defined(SST_ENABLE_HPX)
+
+#include <hpx/local/runtime.hpp>
+#include <hpx/local/thread.hpp>
+#include <hpx/thread.hpp>
+
+using thread_t = hpx::thread;
+#define THIS_THREAD_ID() hpx::this_thread::get_id()
+
+#else
+
+#include <thread>
+
+using thread_t = std::thread;
+#define THIS_THREAD_ID() std::this_thread::get_id()
+
+#endif
+
 
 extern int main(int argc, char** argv);
 
@@ -506,7 +524,7 @@ private:
         m_mpiRank   = mpiRank;
     }
 
-    static void setThreadID(std::thread::id mach, uint32_t user) { m_threadMap.insert(std::make_pair(mach, user)); }
+    static void setThreadID(thread_t::id mach, uint32_t user) { m_threadMap.insert(std::make_pair(mach, user)); }
 
     // Internal Member Variables
     bool              m_objInitialized;
@@ -543,7 +561,7 @@ private:
     std::FILE*  m_sstLocalFileHandle;
     uint32_t    m_sstLocalFileAccessCount;
 
-    static std::unordered_map<std::thread::id, uint32_t> m_threadMap;
+    static std::unordered_map<thread_t::id, uint32_t> m_threadMap;
     static RankInfo                                      m_worldSize;
     static int                                           m_mpiRank;
 };

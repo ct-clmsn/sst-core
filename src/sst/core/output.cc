@@ -43,7 +43,7 @@ std::string Output::m_sstGlobalSimFileName        = "";
 std::FILE*  Output::m_sstGlobalSimFileHandle      = nullptr;
 uint32_t    Output::m_sstGlobalSimFileAccessCount = 0;
 
-std::unordered_map<std::thread::id, uint32_t> Output::m_threadMap;
+std::unordered_map<thread_t::id, uint32_t> Output::m_threadMap;
 RankInfo                                      Output::m_worldSize;
 int                                           Output::m_mpiRank = 0;
 
@@ -480,7 +480,7 @@ Output::getNumThreads() const
 uint32_t
 Output::getThreadRank() const
 {
-    return m_threadMap[std::this_thread::get_id()];
+    return m_threadMap[THIS_THREAD_ID()];
 }
 
 

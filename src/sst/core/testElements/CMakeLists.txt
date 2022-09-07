@@ -31,8 +31,21 @@ add_library(
 add_subdirectory(message_mesh)
 
 # NEED To double check this
+
+if(SST_ENABLE_HPX)
+  if(HPX_FOUND)
+    target_compile_definitions(coreTestElement PUBLIC SST_BUILDING_CORE=1 SST_ENABLE_HPX=1)
+    hpx_setup_target(coreTestElement)
+  else()
+     message(FATAL_ERROR "SST_ENABLE_HPX configured but HPX not found!")
+  endif()
+else()
+  target_compile_definitions(coreTestElement PUBLIC SST_BUILDING_CORE=1)
+endif()
+
 target_include_directories(coreTestElement PRIVATE ${SST_TOP_SRC_DIR}/src)
 target_link_libraries(coreTestElement PRIVATE sst-config-headers)
+
 install(TARGETS coreTestElement DESTINATION lib/sstcore)
 set_target_properties(coreTestElement PROPERTIES NO_SONAME 1)
 

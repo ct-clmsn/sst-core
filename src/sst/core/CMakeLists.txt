@@ -19,6 +19,7 @@ add_subdirectory(impl)
 add_subdirectory(model)
 add_subdirectory(shared)
 add_subdirectory(sync)
+add_subdirectory(profile)
 add_subdirectory(testingframework)
 add_subdirectory(testElements)
 
@@ -95,6 +96,7 @@ add_library(
   statapi/statoutputjson.cc
   statapi/statbase.cc
   cputimer.cc
+  stringize.cc
   iouse.cc)
 
 set(SSTHeaders
@@ -152,7 +154,16 @@ set(SSTHeaders
 
 target_include_directories(sst-core-lib PUBLIC ${SST_TOP_SRC_DIR}/src)
 target_include_directories(sst-core-lib PUBLIC ${sst-core_BINARY_DIR}/src)
-target_compile_definitions(sst-core-lib PUBLIC SST_BUILDING_CORE=1)
+
+if(SST_ENABLE_HPX)
+  if(HPX_FOUND)
+    target_compile_definitions(sst-core-lib PUBLIC SST_BUILDING_CORE=1 SST_ENABLE_HPX=1)
+  else()
+     message(FATAL_ERROR "SST_ENABLE_HPX configured but HPX not found!")
+  endif()
+else()
+  target_compile_definitions(sst-core-lib PUBLIC SST_BUILDING_CORE=1)
+endif()
 
 if(SST_ENABLE_EVENT_TRACKING)
   target_compile_definitions(sst-core-lib PUBLIC __SST_DEBUG_EVENT_TRACKING__=1)
@@ -162,8 +173,18 @@ if(SST_ENABLE_DEBUG_OUTPUT)
   target_compile_definitions(sst-core-lib PUBLIC __SST_DEBUG_OUTPUT__=1)
 endif(SST_ENABLE_DEBUG_OUTPUT)
 
-target_link_libraries(sst-core-lib PUBLIC nlohjson Python::Python
-                                          sst-config-headers ${CMAKE_DL_LIBS} m)
+if(SST_ENABLE_HPX)
+  if(HPX_FOUND)
+    target_link_libraries(sst-core-lib PUBLIC nlohjson HPX::hpx Python::Python
+                                              sst-config-headers ${CMAKE_DL_LIBS} m)
+
+  else()
+     message(FATAL_ERROR "SST_ENABLE_HPX configured but HPX not found!")
+  endif()
+else()
+  target_link_libraries(sst-core-lib PUBLIC nlohjson Python::Python
+                                            sst-config-headers ${CMAKE_DL_LIBS} m)
+endif()
 
 if(MPI_FOUND)
   target_link_libraries(sst-core-lib PUBLIC MPI::MPI_CXX)
@@ -196,6 +217,7 @@ target_link_libraries(
           modelpython
           modeljson
           sync
+	  profile 
           shared)
 set_target_properties(sstsim.x PROPERTIES ENABLE_EXPORTS ON)
 
@@ -211,6 +233,7 @@ target_link_libraries(
           modeljson
           sync
           shared
+	  profile
           tinyxml)
 set_target_properties(sstinfo.x PROPERTIES ENABLE_EXPORTS ON)
 

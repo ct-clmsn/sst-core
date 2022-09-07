@@ -51,6 +51,25 @@ REENABLE_WARNING
 #include <sys/resource.h>
 #include <time.h>
 
+#if defined(SST_ENABLE_HPX)
+
+#include <hpx/hpx_main.hpp>
+#include <hpx/local/runtime.hpp>
+#include <hpx/local/thread.hpp>
+#include <hpx/thread.hpp>
+using thread_t = hpx::thread;
+#define THIS_THREAD_ID() hpx::this_thread::get_id()
+
+#else
+
+#include <thread>
+using thread_t = std::thread;
+#define THIS_THREAD_ID() std::this_thread::get_id()
+
+#endif
+
+
+
 // Configuration Graph Generation Options
 #include "sst/core/cfgoutput/dotConfigOutput.h"
 #include "sst/core/cfgoutput/jsonConfigOutput.h"
@@ -837,7 +856,7 @@ main(int argc, char* argv[])
     Activity::memPools.reserve(world_size.thread * 128);
 #endif
 
-    std::vector<std::thread>     threads(world_size.thread);
+    std::vector<thread_t>     threads(world_size.thread);
     std::vector<SimThreadInfo_t> threadInfo(world_size.thread);
     for ( uint32_t i = 0; i < world_size.thread; i++ ) {
         threadInfo[i].myRank        = myRank;
@@ -851,9 +870,10 @@ main(int argc, char* argv[])
     double end_serial_build = sst_get_cpu_time();
 
     try {
-        Output::setThreadID(std::this_thread::get_id(), 0);
+        Output::setThreadID(THIS_THREAD_ID(), 0);
+
         for ( uint32_t i = 1; i < world_size.thread; i++ ) {
-            threads[i] = std::thread(start_simulation, i, std::ref(threadInfo[i]), std::ref(mainBarrier));
+            threads[i] = thread_t(start_simulation, i, std::ref(threadInfo[i]), std::ref(mainBarrier));
             Output::setThreadID(threads[i].get_id(), i);
         }
 
