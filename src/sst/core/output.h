@@ -31,6 +31,9 @@
 
 #if defined(SST_ENABLE_HPX)
 
+#include <fstream>
+
+#include <hpx/iostream.hpp>
 #include <hpx/local/runtime.hpp>
 #include <hpx/local/thread.hpp>
 #include <hpx/thread.hpp>
@@ -483,7 +486,11 @@ public:
     output_location_t getOutputLocation() const;
 
     /** This method allows for the manual flushing of the output. */
+#if defined(SST_ENABLE_HPX)
+    inline void flush() const { m_targetOutputRef->flush(); }
+#else
     inline void flush() const { std::fflush(*m_targetOutputRef); }
+#endif
 
     /** This method sets the static filename used by SST.  It can only be called
         once, and is automatically called by the SST Core.  No components should
@@ -542,23 +549,40 @@ private:
     // depending upon constructor for the object.  However m_sstFileHandle is a
     // static variable that is set by the startup of SST, and the location
     // cannot be changed in the constructor or a call to setFileName().
+#if defined(SST_ENABLE_HPX)
+    std::ostream * m_targetOutputRef;
+#else
     std::FILE** m_targetOutputRef;
+#endif
 
     // m_targetFileHandleRef, m_targetFileNameRef, and m_targetFileAccessCount
     // are pointers to their associated types.  These point to either the local
     // output file information or to the global simulation output file information.
+#if defined(SST_ENABLE_HPX)
+    std::ostream**  m_targetFileHandleRef;
+#else
     std::FILE**  m_targetFileHandleRef;
+#endif
     std::string* m_targetFileNameRef;
     uint32_t*    m_targetFileAccessCountRef;
 
     // Static Member Variables regarding the Global simulation file info
     static std::string m_sstGlobalSimFileName;
+
+#if defined(SST_ENABLE_HPX)
+    static std::ostream *  m_sstGlobalSimFileHandle;
+#else
     static std::FILE*  m_sstGlobalSimFileHandle;
+#endif
     static uint32_t    m_sstGlobalSimFileAccessCount;
 
     // File Member Variables regarding the local simulation file info
     std::string m_sstLocalFileName;
+#if defined(SST_ENABLE_HPX)
+    std::ostream *  m_sstLocalFileHandle;
+#else
     std::FILE*  m_sstLocalFileHandle;
+#endif
     uint32_t    m_sstLocalFileAccessCount;
 
     static std::unordered_map<thread_t::id, uint32_t> m_threadMap;

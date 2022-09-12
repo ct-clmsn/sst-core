@@ -34,8 +34,9 @@ add_subdirectory(message_mesh)
 
 if(SST_ENABLE_HPX)
   if(HPX_FOUND)
-    target_compile_definitions(coreTestElement PUBLIC SST_BUILDING_CORE=1 SST_ENABLE_HPX=1)
-    hpx_setup_target(coreTestElement)
+     target_compile_definitions(coreTestElement PUBLIC SST_BUILDING_CORE=1 SST_ENABLE_HPX=1)
+     set_target_properties(coreTestElement PROPERTIES CMAKE_INSTALL_RPATH_USE_LINK_PATH ON)
+     hpx_setup_target(coreTestElement)
   else()
      message(FATAL_ERROR "SST_ENABLE_HPX configured but HPX not found!")
   endif()
@@ -44,7 +45,18 @@ else()
 endif()
 
 target_include_directories(coreTestElement PRIVATE ${SST_TOP_SRC_DIR}/src)
-target_link_libraries(coreTestElement PRIVATE sst-config-headers)
+
+if(SST_ENABLE_HPX)
+  if(HPX_FOUND)
+    target_link_libraries(coreTestElement PUBLIC HPX::hpx HPX::iostreams_component
+                                              sst-config-headers)
+  else()
+    target_link_libraries(coreTestElement PRIVATE sst-config-headers)
+  endif()
+else()
+  target_link_libraries(coreTestElement PRIVATE sst-config-headers)
+endif()
+
 
 install(TARGETS coreTestElement DESTINATION lib/sstcore)
 set_target_properties(coreTestElement PROPERTIES NO_SONAME 1)

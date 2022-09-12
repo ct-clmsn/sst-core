@@ -175,8 +175,14 @@ endif(SST_ENABLE_DEBUG_OUTPUT)
 
 if(SST_ENABLE_HPX)
   if(HPX_FOUND)
-    target_link_libraries(sst-core-lib PUBLIC nlohjson HPX::hpx Python::Python
-                                              sst-config-headers ${CMAKE_DL_LIBS} m)
+    target_link_libraries(sst-core-lib PUBLIC nlohjson HPX::hpx HPX::iostreams_component
+                                              Python::Python sst-config-headers ${CMAKE_DL_LIBS} m)
+    set_target_properties(sst-core-lib PROPERTIES CMAKE_INSTALL_RPATH_USE_LINK_PATH ON)
+
+    if(APPLE)
+      target_link_options(sst-core-lib PRIVATE
+                          "LINKER:-undefined,dynamic_lookup")
+    endif()
 
   else()
      message(FATAL_ERROR "SST_ENABLE_HPX configured but HPX not found!")
@@ -207,19 +213,49 @@ target_link_libraries(sst-env-lib PUBLIC sst-config-headers)
 target_include_directories(sst-env-lib PUBLIC ${SST_TOP_SRC_DIR}/src)
 
 add_executable(sstsim.x main.cc)
-target_link_libraries(
-  sstsim.x
-  PRIVATE sst-core-lib
-          sst-env-lib
-          partitioner
-          timeVortex
-          modelCore
-          modelpython
-          modeljson
-          sync
-	  profile 
-          shared)
-set_target_properties(sstsim.x PROPERTIES ENABLE_EXPORTS ON)
+
+if(SST_ENABLE_HPX)
+  if(HPX_FOUND)
+
+  target_link_libraries(
+    sstsim.x
+    PUBLIC HPX::hpx HPX::wrap_main HPX::iostreams_component
+    PRIVATE sst-core-lib
+            sst-env-lib
+            partitioner
+            timeVortex
+            modelCore
+            modelpython
+            modeljson
+            sync
+    	    profile 
+            shared)
+
+    target_compile_definitions(sstsim.x PUBLIC SST_BUILDING_CORE=1 SST_ENABLE_HPX=1)
+    set_target_properties(sstsim.x PROPERTIES CMAKE_INSTALL_RPATH_USE_LINK_PATH ON)
+    set_target_properties(sstsim.x PROPERTIES ENABLE_EXPORTS ON)
+
+  else()
+     message(FATAL_ERROR "SST_ENABLE_HPX configured but HPX not found!")
+  endif()
+else()
+
+  target_link_libraries(
+    sstsim.x
+    PRIVATE sst-core-lib
+            sst-env-lib
+            partitioner
+            timeVortex
+            modelCore
+            modelpython
+            modeljson
+            sync
+	    profile 
+            shared)
+
+  set_target_properties(sstsim.x PROPERTIES ENABLE_EXPORTS ON)
+
+endif()
 
 add_executable(sstinfo.x sstinfo.cc)
 target_link_libraries(
@@ -244,13 +280,34 @@ if(UNIX
   target_link_libraries(sstsim.x PRIVATE rt)
 endif()
 
+if(APPLE)
+  target_link_options(sstsim.x PRIVATE
+                      "LINKER:-undefined,dynamic_lookup")
+  target_link_options(sstinfo.x PRIVATE
+                      "LINKER:-undefined,dynamic_lookup")
+endif()
+
 if(Threads_FOUND)
   target_link_libraries(sstinfo.x PRIVATE Threads::Threads)
   target_link_libraries(sstsim.x PRIVATE Threads::Threads)
 endif()
 
 add_executable(sst bootsst.cc)
-target_link_libraries(sst PRIVATE sst-boot-lib sst-env-lib)
+
+if(SST_ENABLE_HPX)
+  if(HPX_FOUND)
+
+  target_link_libraries(sst PUBLIC HPX::hpx HPX::iostreams_component PRIVATE sst-boot-lib sst-env-lib)
+  target_compile_definitions(sst PUBLIC SST_BUILDING_CORE=1 SST_ENABLE_HPX=1)
+
+  else()
+     message(FATAL_ERROR "SST_ENABLE_HPX configured but HPX not found!")
+  endif()
+else()
+
+  target_link_libraries(sst PRIVATE sst-boot-lib sst-env-lib)
+
+endif()
 
 add_executable(sst-info bootsstinfo.cc)
 target_link_libraries(sst-info PRIVATE sst-boot-lib sst-env-lib)

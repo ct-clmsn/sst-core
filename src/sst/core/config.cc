@@ -540,6 +540,44 @@ public:
 void
 Config::print()
 {
+#if defined(SST_ENABLE_HPX) 
+    hpx::cout << "verbose = " << verbose_ << std::endl;
+    hpx::cout << "num_threads = " << world_size_.thread << std::endl;
+    hpx::cout << "num_ranks = " << world_size_.rank << std::endl;
+    hpx::cout << "configFile = " << configFile_ << std::endl;
+    hpx::cout << "model_options = " << model_options_ << std::endl;
+    hpx::cout << "print_timing = " << print_timing_ << std::endl;
+    hpx::cout << "stop_at = " << stop_at_ << std::endl;
+    hpx::cout << "exit_after = " << exit_after_ << std::endl;
+    hpx::cout << "partitioner = " << partitioner_ << std::endl;
+    hpx::cout << "heartbeatPeriod = " << heartbeatPeriod_ << std::endl;
+    hpx::cout << "output_directory = " << output_directory_ << std::endl;
+    hpx::cout << "output_core_prefix = " << output_core_prefix_ << std::endl;
+    hpx::cout << "output_config_graph = " << output_config_graph_ << std::endl;
+    hpx::cout << "output_json = " << output_json_ << std::endl;
+    hpx::cout << "parallel_output = " << parallel_output_ << std::endl;
+    hpx::cout << "output_dot = " << output_dot_ << std::endl;
+    hpx::cout << "dot_verbosity = " << dot_verbosity_ << std::endl;
+    hpx::cout << "component_partition_file = " << component_partition_file_ << std::endl;
+    hpx::cout << "output_partition = " << output_partition_ << std::endl;
+    hpx::cout << "timeBase = " << timeBase_ << std::endl;
+    hpx::cout << "parallel_load = " << parallel_load_ << std::endl;
+    hpx::cout << "timeVortex = " << timeVortex_ << std::endl;
+    hpx::cout << "interthread_links = " << interthread_links_ << std::endl;
+    hpx::cout << "debugFile = " << debugFile_ << std::endl;
+    hpx::cout << "libpath = " << libpath_ << std::endl;
+    hpx::cout << "addLlibPath = " << addLibPath_ << std::endl;
+    hpx::cout << "enabled_profiling = " << enabled_profiling_ << std::endl;
+    hpx::cout << "profiling_output = " << profiling_output_ << std::endl;
+    hpx::cout << "runMode = " << runMode_ << std::endl;
+#ifdef USE_MEMPOOL
+    hpx::cout << "event_dump_file = " << event_dump_file_ << std::endl;
+#endif
+    hpx::cout << "rank_seq_startup_ " << rank_seq_startup_ << std::endl;
+    hpx::cout << "print_env" << print_env_ << std::endl;
+    hpx::cout << "enable_sig_handling = " << enable_sig_handling_ << std::endl;
+    hpx::cout << "no_env_config = " << no_env_config_ << std::endl << std::flush;
+#else
     std::cout << "verbose = " << verbose_ << std::endl;
     std::cout << "num_threads = " << world_size_.thread << std::endl;
     std::cout << "num_ranks = " << world_size_.rank << std::endl;
@@ -576,6 +614,7 @@ Config::print()
     std::cout << "print_env" << print_env_ << std::endl;
     std::cout << "enable_sig_handling = " << enable_sig_handling_ << std::endl;
     std::cout << "no_env_config = " << no_env_config_ << std::endl;
+#endif
 }
 
 

@@ -20,6 +20,10 @@
 #include "sst/core/link.h"
 #include "sst/core/rng/marsaglia.h"
 
+#if defined(SST_ENABLE_HPX)
+#include <hpx/iostream.hpp>
+#endif
+
 namespace SST {
 namespace CoreTestComponent {
 
@@ -105,7 +109,12 @@ public:
     ~coreTestComponent();
 
     void setup() {}
+
+#if defined(SST_ENABLE_HPX)
+    void finish() { hpx::cout << "Component Finished." << std::endl << std::flush; }
+#else
     void finish() { printf("Component Finished.\n"); }
+#endif
 
 private:
     coreTestComponent();                         // for serialization only

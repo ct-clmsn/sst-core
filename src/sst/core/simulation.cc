@@ -54,7 +54,8 @@ namespace SST {
 Simulation*
 Simulation::getSimulation()
 {
-    return Simulation_impl::instanceMap.at(std::this_thread::get_id());
+
+    return Simulation_impl::instanceMap.at(THIS_THREAD_ID());
 }
 
 TimeLord*
@@ -165,10 +166,10 @@ Simulation_impl::~Simulation_impl()
 Simulation_impl*
 Simulation_impl::createSimulation(Config* config, RankInfo my_rank, RankInfo num_ranks)
 {
-    std::thread::id  tid      = std::this_thread::get_id();
+    thread_id_t tid = THIS_THREAD_ID();
     Simulation_impl* instance = new Simulation_impl(config, my_rank, num_ranks);
 
-    std::lock_guard<std::mutex> lock(simulationMutex);
+    std::lock_guard<mutex_t> lock(simulationMutex);
     instanceMap[tid] = instance;
     instanceVec.resize(num_ranks.thread);
     instanceVec[my_rank.thread] = instance;
@@ -202,7 +203,17 @@ Simulation_impl::Simulation_impl(Config* cfg, RankInfo my_rank, RankInfo num_ran
     init_phase_start_time(0.0),
     init_phase_total_time(0.0),
     complete_phase_start_time(0.0),
+#if defined(SST_ENABLE_HPX)
+    complete_phase_total_time(0.0),
+    initBarrier(num_ranks.thread),
+    completeBarrier(num_ranks.thread),
+    setupBarrier(num_ranks.thread),
+    runBarrier(num_ranks.thread),
+    exitBarrier(num_ranks.thread),
+    finishBarrier(num_ranks.thread)
+#else
     complete_phase_total_time(0.0)
+#endif
 {
     sim_output.init(cfg->output_core_prefix(), cfg->verbose(), 0, Output::STDOUT);
     output_directory = cfg->output_directory();
@@ -534,22 +545,22 @@ Simulation_impl::initialize()
 {
     init_phase_start_time = sst_get_cpu_time();
     bool done             = false;
-    initBarrier.wait();
+    BARRIER_WAIT(initBarrier);
     if ( my_rank.thread == 0 ) { SharedObject::manager.updateState(false); }
 
     do {
-        initBarrier.wait();
+        BARRIER_WAIT(initBarrier);
         if ( my_rank.thread == 0 ) untimed_msg_count = 0;
-        initBarrier.wait();
+        BARRIER_WAIT(initBarrier);
 
         for ( auto iter = compInfoMap.begin(); iter != compInfoMap.end(); ++iter ) {
             // printf("Calling init on %s: %p\n",(*iter)->getName().c_str(),(*iter)->getComponent());
             (*iter)->getComponent()->init(untimed_phase);
         }
 
-        initBarrier.wait();
+        BARRIER_WAIT(initBarrier);
         syncManager->exchangeLinkUntimedData(untimed_msg_count);
-        initBarrier.wait();
+        BARRIER_WAIT(initBarrier);
         // We're done if no new messages were sent
         if ( untimed_msg_count == 0 ) done = true;
         if ( my_rank.thread == 0 ) { SharedObject::manager.updateState(false); }
@@ -578,7 +589,7 @@ void
 Simulation_impl::complete()
 {
     complete_phase_start_time = sst_get_cpu_time();
-    completeBarrier.wait();
+    BARRIER_WAIT(completeBarrier);
     untimed_phase = 0;
     // Walk through all the links and call prepareForComplete()
     for ( auto& i : compInfoMap ) {
@@ -588,20 +599,20 @@ Simulation_impl::complete()
     syncManager->prepareForComplete();
 
     bool done = false;
-    completeBarrier.wait();
+    BARRIER_WAIT(completeBarrier);
 
     do {
-        completeBarrier.wait();
+        BARRIER_WAIT(completeBarrier);
         if ( my_rank.thread == 0 ) untimed_msg_count = 0;
-        completeBarrier.wait();
+        BARRIER_WAIT(completeBarrier);
 
         for ( auto iter = compInfoMap.begin(); iter != compInfoMap.end(); ++iter ) {
             (*iter)->getComponent()->complete(untimed_phase);
         }
 
-        completeBarrier.wait();
+        BARRIER_WAIT(completeBarrier);
         syncManager->exchangeLinkUntimedData(untimed_msg_count);
-        completeBarrier.wait();
+        BARRIER_WAIT(completeBarrier);
         // We're done if no new messages were sent
         if ( untimed_msg_count == 0 ) done = true;
 
@@ -614,18 +625,18 @@ void
 Simulation_impl::setup()
 {
 
-    setupBarrier.wait();
+    BARRIER_WAIT(setupBarrier);
 
     /* Enforce finalization of SharedObjects */
     if ( my_rank.thread == 0 ) { SharedObject::manager.updateState(true); }
 
-    setupBarrier.wait();
+    BARRIER_WAIT(setupBarrier);
 
     for ( auto iter = compInfoMap.begin(); iter != compInfoMap.end(); ++iter ) {
         (*iter)->getComponent()->setup();
     }
 
-    setupBarrier.wait();
+    BARRIER_WAIT(setupBarrier);
 }
 
 void
@@ -728,7 +739,7 @@ Simulation_impl::run()
     }
     /* We shouldn't need to do this, but to be safe... */
 
-    runBarrier.wait(); // TODO<- Is this needed?
+    BARRIER_WAIT(runBarrier);
 
     run_phase_total_time = sst_get_cpu_time() - run_phase_start_time;
 
@@ -760,7 +771,7 @@ Simulation_impl::run()
 void
 Simulation_impl::emergencyShutdown()
 {
-    std::lock_guard<std::mutex> lock(simulationMutex);
+    std::lock_guard<mutex_t> lock(simulationMutex);
 
     for ( auto&& instance : instanceVec ) {
         instance->shutdown_mode = SHUTDOWN_EMERGENCY;
@@ -794,7 +805,7 @@ Simulation_impl::endSimulation(SimTime_t end)
     endSimCycle = end;
     endSim      = true;
 
-    exitBarrier.wait();
+    BARRIER_WAIT(exitBarrier);
 }
 
 void
@@ -807,7 +818,7 @@ Simulation_impl::finish()
         (*iter)->getComponent()->finish();
     }
 
-    finishBarrier.wait();
+    BARRIER_WAIT(finishBarrier);
 
     switch ( shutdown_mode ) {
     case SHUTDOWN_CLEAN:
@@ -820,7 +831,7 @@ Simulation_impl::finish()
         sim_output.output("EMERGENCY SHUTDOWN Complete (%u,%u)!\n", my_rank.rank, my_rank.thread);
     }
 
-    finishBarrier.wait();
+    BARRIER_WAIT(finishBarrier);
 
     // Tell the Statistics Engine that the simulation is ending
     if ( my_rank.thread == 0 ) { StatisticProcessingEngine::getInstance()->endOfSimulation(); }
@@ -1033,28 +1044,29 @@ Simulation_impl::incrementSyncTime(bool rankSync, uint64_t count)
 // Function to allow for easy serialization of threads while debugging
 // code
 void
-wait_my_turn_start(Core::ThreadSafe::Barrier& barrier, int thread, int UNUSED(total_threads))
+wait_my_turn_start(barrier_t& barrier, int thread, int UNUSED(total_threads))
 {
     // Everyone barriers
-    barrier.wait();
+    BARRIER_WAIT(barrier);
     // Now barrier until it's my turn
     for ( int i = 0; i < thread; i++ ) {
-        barrier.wait();
+        BARRIER_WAIT(barrier);
     }
 }
 
 void
-wait_my_turn_end(Core::ThreadSafe::Barrier& barrier, int thread, int total_threads)
+wait_my_turn_end(barrier_t& barrier, int thread, int total_threads)
 {
 
     // Wait for all the threads after me to finish
     for ( int i = thread; i < total_threads; i++ ) {
-        barrier.wait();
+        BARRIER_WAIT(barrier);
     }
     // All barrier
-    barrier.wait();
+    BARRIER_WAIT(barrier);
 }
 
+#if !defined(SST_ENABLE_HPX)
 void
 Simulation_impl::resizeBarriers(uint32_t nthr)
 {
@@ -1065,6 +1077,7 @@ Simulation_impl::resizeBarriers(uint32_t nthr)
     exitBarrier.resize(nthr);
     finishBarrier.resize(nthr);
 }
+#endif
 
 
 void
@@ -1253,18 +1266,21 @@ Factory*                  Simulation_impl::factory;
 TimeLord                  Simulation_impl::timeLord;
 std::map<LinkId_t, Link*> Simulation_impl::cross_thread_links;
 Output                    Simulation_impl::sim_output;
-Core::ThreadSafe::Barrier Simulation_impl::initBarrier;
-Core::ThreadSafe::Barrier Simulation_impl::completeBarrier;
-Core::ThreadSafe::Barrier Simulation_impl::setupBarrier;
-Core::ThreadSafe::Barrier Simulation_impl::runBarrier;
-Core::ThreadSafe::Barrier Simulation_impl::exitBarrier;
-Core::ThreadSafe::Barrier Simulation_impl::finishBarrier;
-std::mutex                Simulation_impl::simulationMutex;
+
+#if !defined(SST_ENABLE_HPX)
+barrier_t Simulation_impl::initBarrier{0};
+barrier_t Simulation_impl::completeBarrier{0};
+barrier_t Simulation_impl::setupBarrier{0};
+barrier_t Simulation_impl::runBarrier{0};
+barrier_t Simulation_impl::exitBarrier{0};
+barrier_t Simulation_impl::finishBarrier{0};
+#endif
+mutex_t                   Simulation_impl::simulationMutex;
 TimeConverter*            Simulation_impl::minPartTC = nullptr;
 SimTime_t                 Simulation_impl::minPart;
 
 /* Define statics (Simulation) */
-std::unordered_map<std::thread::id, Simulation_impl*> Simulation_impl::instanceMap;
+std::unordered_map<thread_id_t, Simulation_impl*> Simulation_impl::instanceMap;
 std::vector<Simulation_impl*>                         Simulation_impl::instanceVec;
 std::atomic<int>                                      Simulation_impl::untimed_msg_count;
 Exit*                                                 Simulation_impl::m_exit;

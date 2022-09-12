@@ -29,6 +29,7 @@ add_library(
 if(SST_ENABLE_HPX)
   if(HPX_FOUND)
     target_compile_definitions(profile PUBLIC SST_BUILDING_CORE=1 SST_ENABLE_HPX=1)
+    set_target_properties(profile PROPERTIES CMAKE_INSTALL_RPATH_USE_LINK_PATH ON)
     hpx_setup_target(profile)
   else()
      message(FATAL_ERROR "SST_ENABLE_HPX configured but HPX not found!")

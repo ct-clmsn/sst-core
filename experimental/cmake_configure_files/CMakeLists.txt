@@ -16,7 +16,7 @@ install(FILES ${sst-core_BINARY_DIR}/src/sst/sstsimulator.conf
 configure_file(SST_version.pc.in
                ${sst-core_BINARY_DIR}/src/sst/SST-${VERSION}.pc)
 install(FILES ${sst-core_BINARY_DIR}/src/sst/SST-${VERSION}.pc
-        DESTINATION "lib/pkgconfg")
+        DESTINATION "lib/pkgconfig")
 
 configure_file(build_info.h.in ${sst-core_BINARY_DIR}/src/sst/core/build_info.h)
 # TODO figure out how build_info.h needs to be installed

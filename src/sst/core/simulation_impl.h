@@ -40,6 +40,27 @@ extern int main(int argc, char** argv);
 #define SST_PROFILE_TOOL_SYNC         3
 #define SST_PROFILE_TOOL_CUSTOM_START 4
 
+#if defined(SST_ENABLE_HPX)
+using thread_id_t = hpx::thread::id;
+using mutex_t = hpx::mutex;
+using barrier_t = hpx::barrier<>;
+#define BARRIER_WAIT(b) b.wait(b.arrive())
+using thread_t = hpx::thread;
+#define THIS_THREAD_ID() hpx::this_thread::get_id()
+
+#else
+
+#include <thread>
+using thread_id_t = std::thread::id;
+using mutex_t = std::mutex;
+using barrier_t = SST::Core::ThreadSafe::Barrier;
+#define BARRIER_WAIT(b) b.wait()
+using thread_t = std::thread;
+#define THIS_THREAD_ID() std::this_thread::get_id()
+
+#endif
+
+
 namespace SST {
 
 #define _SIM_DBG(fmt, args...) __DBG(DBG_SIM, Sim, fmt, ##args)
@@ -148,7 +169,7 @@ public:
     /*********  Static Core-only Functions *********/
 
     /** Return a pointer to the singleton instance of the Simulation */
-    static Simulation_impl* getSimulation() { return instanceMap.at(std::this_thread::get_id()); }
+    static Simulation_impl* getSimulation() { return instanceMap.at(THIS_THREAD_ID()); }
 
     /** Return the TimeLord associated with this Simulation */
     static TimeLord* getTimeLord(void) { return &timeLord; }
@@ -326,14 +347,23 @@ public:
     /** Factory used to generate the simulation components */
     static Factory* factory;
 
+#if defined(SST_ENABLE_HPX)
+    barrier_t initBarrier;
+    barrier_t completeBarrier;
+    barrier_t setupBarrier;
+    barrier_t runBarrier;
+    barrier_t exitBarrier;
+    barrier_t finishBarrier;
+#else
     static void                      resizeBarriers(uint32_t nthr);
-    static Core::ThreadSafe::Barrier initBarrier;
-    static Core::ThreadSafe::Barrier completeBarrier;
-    static Core::ThreadSafe::Barrier setupBarrier;
-    static Core::ThreadSafe::Barrier runBarrier;
-    static Core::ThreadSafe::Barrier exitBarrier;
-    static Core::ThreadSafe::Barrier finishBarrier;
-    static std::mutex                simulationMutex;
+    static barrier_t initBarrier;
+    static barrier_t completeBarrier;
+    static barrier_t setupBarrier;
+    static barrier_t runBarrier;
+    static barrier_t exitBarrier;
+    static barrier_t finishBarrier;
+#endif
+    static mutex_t                simulationMutex;
 
     static std::map<LinkId_t, Link*> cross_thread_links;
     bool                             direct_interthread;
@@ -477,7 +507,7 @@ public:
     double complete_phase_start_time;
     double complete_phase_total_time;
 
-    static std::unordered_map<std::thread::id, Simulation_impl*> instanceMap;
+    static std::unordered_map<thread_id_t, Simulation_impl*> instanceMap;
     static std::vector<Simulation_impl*>                         instanceVec;
 
     friend void wait_my_turn_start();
@@ -496,9 +526,9 @@ private:
 // taking the same code path.  If you can't guarantee that, then use a
 // spinlock to make sure only one person is in a given region at a
 // time.  ONLY FOR DEBUG USE.
-void wait_my_turn_start(Core::ThreadSafe::Barrier& barrier, int thread, int total_threads);
+void wait_my_turn_start(barrier_t& barrier, int thread, int total_threads);
 
-void wait_my_turn_end(Core::ThreadSafe::Barrier& barrier, int thread, int total_threads);
+void wait_my_turn_end(barrier_t& barrier, int thread, int total_threads);
 
 } // namespace SST
 

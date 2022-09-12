@@ -13,6 +13,37 @@
 
 #include "sst/core/warnmacros.h"
 
+#if defined(SST_ENABLE_HPX) && !defined(HPX_COMPUTE_DEVICE_CODE)
+
+#include <hpx/config.hpp>
+#include <hpx/hpx.hpp>
+#include <hpx/hpx_main.hpp>
+#include <hpx/modules/runtime_local.hpp>
+#include <hpx/modules/resource_partitioner.hpp>
+#include <hpx/local/barrier.hpp>
+#include <hpx/local/runtime.hpp>
+#include <hpx/local/thread.hpp>
+#include <hpx/thread.hpp>
+#include <hpx/iostream.hpp>
+
+using barrier_t = hpx::barrier<>;
+using thread_t = hpx::thread;
+
+#define BARRIER_WAIT(b) b.wait(b.arrive())
+#define THIS_THREAD_ID() hpx::this_thread::get_id()
+
+#else
+
+#include <thread>
+
+using barrier_t = Core::ThreadSafe::Barrier;
+using thread_t = std::thread;
+
+#define BARRIER_WAIT(b) b.wait()
+#define THIS_THREAD_ID() std::this_thread::get_id()
+
+#endif
+
 DISABLE_WARN_DEPRECATED_REGISTER
 #include <Python.h>
 REENABLE_WARNING
@@ -51,25 +82,6 @@ REENABLE_WARNING
 #include <sys/resource.h>
 #include <time.h>
 
-#if defined(SST_ENABLE_HPX)
-
-#include <hpx/hpx_main.hpp>
-#include <hpx/local/runtime.hpp>
-#include <hpx/local/thread.hpp>
-#include <hpx/thread.hpp>
-using thread_t = hpx::thread;
-#define THIS_THREAD_ID() hpx::this_thread::get_id()
-
-#else
-
-#include <thread>
-using thread_t = std::thread;
-#define THIS_THREAD_ID() std::this_thread::get_id()
-
-#endif
-
-
-
 // Configuration Graph Generation Options
 #include "sst/core/cfgoutput/dotConfigOutput.h"
 #include "sst/core/cfgoutput/jsonConfigOutput.h"
@@ -83,7 +95,6 @@ using namespace std;
 using namespace SST;
 
 static SST::Output g_output;
-
 
 // Functions to force initialization stages of simulation to execute
 // one rank at a time.  Put force_rank_sequential_start() before the
@@ -320,7 +331,7 @@ finalize_statEngineConfig(void)
 }
 
 static void
-start_simulation(uint32_t tid, SimThreadInfo_t& info, Core::ThreadSafe::Barrier& barrier)
+start_simulation(uint32_t tid, SimThreadInfo_t& info, barrier_t& barrier)
 {
     info.myRank.thread = tid;
     double start_build = sst_get_cpu_time();
@@ -333,27 +344,27 @@ start_simulation(uint32_t tid, SimThreadInfo_t& info, Core::ThreadSafe::Barrier&
     ////// Create Simulation Objects //////
     SST::Simulation_impl* sim = Simulation_impl::createSimulation(info.config, info.myRank, info.world_size);
 
-    barrier.wait();
+    BARRIER_WAIT(barrier);
 
     sim->processGraphInfo(*info.graph, info.myRank, info.min_part);
 
-    barrier.wait();
+    BARRIER_WAIT(barrier);
 
     force_rank_sequential_start(info.config->rank_seq_startup(), info.myRank, info.world_size);
 
-    barrier.wait();
+    BARRIER_WAIT(barrier);
 
     // Perform the wireup.  Do this one thread at a time for now.  If
     // this ever changes, then need to put in some serialization into
     // performWireUp.
     for ( uint32_t i = 0; i < info.world_size.thread; ++i ) {
         if ( i == info.myRank.thread ) { do_link_preparation(info.graph, sim, info.myRank, info.min_part); }
-        barrier.wait();
+        BARRIER_WAIT(barrier);
     }
 
     for ( uint32_t i = 0; i < info.world_size.thread; ++i ) {
         if ( i == info.myRank.thread ) { do_graph_wireup(info.graph, sim, info.myRank, info.min_part); }
-        barrier.wait();
+        BARRIER_WAIT(barrier);
     }
 
     if ( tid == 0 ) {
@@ -363,11 +374,11 @@ start_simulation(uint32_t tid, SimThreadInfo_t& info, Core::ThreadSafe::Barrier&
 
     force_rank_sequential_stop(info.config->rank_seq_startup(), info.myRank, info.world_size);
 
-    barrier.wait();
+    BARRIER_WAIT(barrier);
 
     if ( info.myRank.thread == 0 ) { sim->exchangeLinkInfo(); }
 
-    barrier.wait();
+    BARRIER_WAIT(barrier);
 
     double start_run = sst_get_cpu_time();
     info.build_time  = start_run - start_build;
@@ -376,7 +387,7 @@ start_simulation(uint32_t tid, SimThreadInfo_t& info, Core::ThreadSafe::Barrier&
     if ( tid == 0 && info.world_size.rank > 1 ) { MPI_Barrier(MPI_COMM_WORLD); }
 #endif
 
-    barrier.wait();
+    BARRIER_WAIT(barrier);
 
     if ( info.config->runMode() == Simulation::RUN || info.config->runMode() == Simulation::BOTH ) {
         if ( info.config->verbose() && 0 == tid ) {
@@ -432,27 +443,27 @@ start_simulation(uint32_t tid, SimThreadInfo_t& info, Core::ThreadSafe::Barrier&
             Factory::getFactory()->loadUnloadedLibraries(lib_names);
 #endif
         }
-        barrier.wait();
+        BARRIER_WAIT(barrier);
 
         sim->initialize();
-        barrier.wait();
+        BARRIER_WAIT(barrier);
 
         /* Run Set */
         sim->setup();
-        barrier.wait();
+        BARRIER_WAIT(barrier);
 
         /* Run Simulation */
         sim->run();
-        barrier.wait();
+        BARRIER_WAIT(barrier);
 
         sim->complete();
-        barrier.wait();
+        BARRIER_WAIT(barrier);
 
         sim->finish();
-        barrier.wait();
+        BARRIER_WAIT(barrier);
     }
 
-    barrier.wait();
+    BARRIER_WAIT(barrier);
 
     info.simulated_time = sim->getFinalSimTime();
     // g_output.output(CALL_INFO,"Simulation time = %s\n",info.simulated_time.toStringBestSI().c_str());
@@ -476,11 +487,11 @@ start_simulation(uint32_t tid, SimThreadInfo_t& info, Core::ThreadSafe::Barrier&
 
         for ( uint32_t i = 0; i < info.world_size.thread; ++i ) {
             if ( i == info.myRank.thread ) { sim->printProfilingInfo(stdout); }
-            barrier.wait();
+            BARRIER_WAIT(barrier);
         }
 
         force_rank_sequential_stop(info.world_size.rank > 1, info.myRank, info.world_size);
-        barrier.wait();
+        BARRIER_WAIT(barrier);
     }
     else {
         // Output to file
@@ -500,7 +511,7 @@ start_simulation(uint32_t tid, SimThreadInfo_t& info, Core::ThreadSafe::Barrier&
                 sim->printProfilingInfo(fp);
                 fclose(fp);
             }
-            barrier.wait();
+            BARRIER_WAIT(barrier);
         }
     }
 
@@ -538,6 +549,9 @@ main(int argc, char* argv[])
         return 0;
     }
     world_size.thread = cfg.num_threads();
+
+//g_output.output("THREAD\t%d\n", world_size.thread);
+//g_output.flush();
 
     if ( cfg.parallel_load() && cfg.parallel_load_mode_multi() && world_size.rank != 1 ) {
         addRankToFileName(cfg.configFile_, myRank.rank);
@@ -846,17 +860,26 @@ main(int argc, char* argv[])
     ///// End Set up StatisticEngine /////
 
     ////// Create Simulation //////
-    Core::ThreadSafe::Barrier mainBarrier(world_size.thread);
+    barrier_t mainBarrier(world_size.thread);
 
     Simulation_impl::factory    = factory;
     Simulation_impl::sim_output = g_output;
+#if !defined(SST_ENABLE_HPX)
     Simulation_impl::resizeBarriers(world_size.thread);
+#endif
+
+
 #ifdef USE_MEMPOOL
     /* Estimate that we won't have more than 128 sizes of events */
     Activity::memPools.reserve(world_size.thread * 128);
 #endif
 
+#if defined(SST_ENABLE_HPX)
+    std::vector<thread_t>     threads;
+    threads.reserve(world_size.thread);
+#else
     std::vector<thread_t>     threads(world_size.thread);
+#endif
     std::vector<SimThreadInfo_t> threadInfo(world_size.thread);
     for ( uint32_t i = 0; i < world_size.thread; i++ ) {
         threadInfo[i].myRank        = myRank;
@@ -873,7 +896,11 @@ main(int argc, char* argv[])
         Output::setThreadID(THIS_THREAD_ID(), 0);
 
         for ( uint32_t i = 1; i < world_size.thread; i++ ) {
+#if defined(SST_ENABLE_HPX)
+            threads.emplace_back(std::move(thread_t{start_simulation, i, std::ref(threadInfo[i]), std::ref(mainBarrier)}));
+#else
             threads[i] = thread_t(start_simulation, i, std::ref(threadInfo[i]), std::ref(mainBarrier));
+#endif
             Output::setThreadID(threads[i].get_id(), i);
         }
 

@@ -35,12 +35,35 @@ DISABLE_WARN_MISSING_OVERRIDE
 REENABLE_WARNING
 #endif
 
+#if defined(SST_ENABLE_HPX)
+#include <iostream>
+#endif
+
 namespace SST {
+
+#if defined(SST_ENABLE_HPX)
+template<typename ... Args>
+std::string string_format( const std::string& format, Args ... args )
+{
+    int size_s = std::snprintf( nullptr, 0, format.c_str(), args ... ) + 1; // Extra space for '\0'
+    if( size_s <= 0 ){ throw std::runtime_error( "Error during formatting." ); }
+    auto size = static_cast<size_t>( size_s );
+    std::unique_ptr<char[]> buf( new char[ size ] );
+    std::snprintf( buf.get(), size, format.c_str(), args ... );
+    return std::string( buf.get(), buf.get() + size - 1 ); // We don't want the '\0' inside
+}
+#endif
 
 // Initialize The Static Member Variables
 Output      Output::m_defaultObject;
 std::string Output::m_sstGlobalSimFileName        = "";
+
+#if defined(SST_ENABLE_HPX)
+std::ostream * Output::m_sstGlobalSimFileHandle     = nullptr;
+#else
 std::FILE*  Output::m_sstGlobalSimFileHandle      = nullptr;
+#endif
+
 uint32_t    Output::m_sstGlobalSimFileAccessCount = 0;
 
 std::unordered_map<thread_t::id, uint32_t> Output::m_threadMap;
@@ -179,7 +202,12 @@ Output::fatal(uint32_t line, const char* file, const char* func, int exit_code, 
         // Also make sure we are not redundantly printing to screen
         // We have already printed to stderr
         if ( NONE != m_targetLoc && STDERR != m_targetLoc && STDOUT != m_targetLoc ) {
+#if defined(SST_ENABLE_HPX)
+            const std::string ostr = string_format(newFmt, arg2);
+            m_targetOutputRef->write(ostr.c_str(), ostr.size());
+#else
             std::vfprintf(*m_targetOutputRef, newFmt.c_str(), arg2);
+#endif
         }
 
         va_end(arg2);
@@ -257,14 +285,24 @@ Output::setTargetOutput(output_location_t location)
         // Decide if we are sending output to the System Output file or the local debug file
         if ( 0 == m_sstLocalFileName.length() ) {
             // Set the references to the Global Simulation target file info
+#if defined(SST_ENABLE_HPX)
+            std::ostream ** os = &m_targetOutputRef;
+            (*os) = m_sstGlobalSimFileHandle;
+#else
             m_targetOutputRef          = &m_sstGlobalSimFileHandle;
+#endif
             m_targetFileHandleRef      = &m_sstGlobalSimFileHandle;
             m_targetFileNameRef        = &m_sstGlobalSimFileName;
             m_targetFileAccessCountRef = &m_sstGlobalSimFileAccessCount;
         }
         else {
             // Set the references to the Local output target file info
+#if defined(SST_ENABLE_HPX)
+            std::ostream ** os = &m_targetOutputRef;
+            (*os) = m_sstGlobalSimFileHandle;
+#else
             m_targetOutputRef          = &m_sstLocalFileHandle;
+#endif
             m_targetFileHandleRef      = &m_sstLocalFileHandle;
             m_targetFileNameRef        = &m_sstLocalFileName;
             m_targetFileAccessCountRef = &m_sstLocalFileAccessCount;
@@ -273,12 +311,20 @@ Output::setTargetOutput(output_location_t location)
         (*m_targetFileAccessCountRef)++;
         break;
     case STDERR:
+#if defined(SST_ENABLE_HPX)
+        m_targetOutputRef = &hpx::cerr;
+#else
         m_targetOutputRef = &stderr;
+#endif
         break;
     case NONE:
     case STDOUT:
     default:
+#if defined(SST_ENABLE_HPX)
+        m_targetOutputRef = &hpx::cout;
+#else
         m_targetOutputRef = &stdout;
+#endif
         break;
     }
 }
@@ -286,7 +332,11 @@ Output::setTargetOutput(output_location_t location)
 void
 Output::openSSTTargetFile() const
 {
+#if defined(SST_ENABLE_HPX)
+    std::ofstream* handle;
+#else
     std::FILE*  handle;
+#endif
     std::string tempFileName;
     char        tempBuf[256];
 
@@ -295,7 +345,7 @@ Output::openSSTTargetFile() const
         if ( (FILE == m_targetLoc) && (nullptr == *m_targetFileHandleRef) ) {
 
             // Check to see if the File has not been opened.
-            if ( (*m_targetFileAccessCountRef > 0) && (nullptr == *m_targetFileHandleRef) ) {
+            if ( ((*m_targetFileAccessCountRef) > 0) && (nullptr == *m_targetFileHandleRef) ) {
                 tempFileName = *m_targetFileNameRef;
 
                 // Append the rank to file name if MPI_COMM_WORLD is GT 1
@@ -304,6 +354,16 @@ Output::openSSTTargetFile() const
                     tempFileName += tempBuf;
                 }
 
+#if defined(SST_ENABLE_HPX)
+                handle = new std::ofstream(tempFileName.c_str());
+                if(!handle->bad()) {
+                    (*m_targetFileHandleRef) = handle;
+                }
+                else {
+                    hpx::cerr << "ERROR: Output::openSSTTargetFile() - Problem opening File " << tempFileName << " - " << std::string{strerror(errno)} << std::endl << std::flush;
+                    exit(-1);
+                }
+#else
                 // Now try to open the file
                 handle = fopen(tempFileName.c_str(), "w");
                 if ( nullptr != handle ) { *m_targetFileHandleRef = handle; }
@@ -314,6 +374,7 @@ Output::openSSTTargetFile() const
                         tempFileName.c_str(), strerror(errno));
                     exit(-1);
                 }
+#endif
             }
         }
     }
@@ -328,7 +389,11 @@ Output::closeSSTTargetFile()
 
         // If the access count is zero, and the file has been opened, then close it
         if ( (0 == *m_targetFileAccessCountRef) && (nullptr != *m_targetFileHandleRef) && (FILE == m_targetLoc) ) {
+#if defined(SST_ENABLE_HPX)
+            (*m_targetFileHandleRef)->flush();
+#else
             fclose(*m_targetFileHandleRef);
+#endif
         }
     }
 }
@@ -441,8 +506,14 @@ Output::outputprintf(
     // Check to make sure output location is not NONE
     if ( NONE != m_targetLoc ) {
         newFmt = buildPrefixString(line, file, func) + format;
+#if defined(SST_ENABLE_HPX)
+        const std::string ostr = string_format(newFmt, arg);
+        m_targetOutputRef->write(ostr.c_str(), ostr.size());
+        if ( FILE == m_targetLoc ) m_targetOutputRef->flush();
+#else
         std::vfprintf(*m_targetOutputRef, newFmt.c_str(), arg);
         if ( FILE == m_targetLoc ) fflush(*m_targetOutputRef);
+#endif
     }
 }
 
@@ -454,8 +525,14 @@ Output::outputprintf(const char* format, va_list arg) const
 
     // Check to make sure output location is not NONE
     if ( NONE != m_targetLoc ) {
+#if defined(SST_ENABLE_HPX)
+        const std::string ostr = string_format(format, arg);
+        m_targetOutputRef->write(ostr.c_str(), ostr.size());
+        if ( FILE == m_targetLoc ) m_targetOutputRef->flush();
+#else
         std::vfprintf(*m_targetOutputRef, format, arg);
         if ( FILE == m_targetLoc ) fflush(*m_targetOutputRef);
+#endif
     }
 }
 
