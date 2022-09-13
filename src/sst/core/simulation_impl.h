@@ -41,11 +41,12 @@ extern int main(int argc, char** argv);
 #define SST_PROFILE_TOOL_CUSTOM_START 4
 
 #if defined(SST_ENABLE_HPX)
+
 #include <hpx/synchronization/barrier.hpp>
 using thread_id_t = hpx::thread::id;
 using mutex_t = hpx::mutex;
 using barrier_t = hpx::barrier<>;
-#define BARRIER_WAIT(b) b.wait(b.arrive())
+#define BARRIER_WAIT(b) b.arrive_and_wait()
 using thread_t = hpx::thread;
 #define THIS_THREAD_ID() hpx::this_thread::get_id()
 
@@ -184,6 +185,8 @@ public:
      * @param num_ranks - How many Ranks are in the simulation
      */
     static Simulation_impl* createSimulation(Config* config, RankInfo my_rank, RankInfo num_ranks);
+
+    static void makeSimulation(Config* config, RankInfo my_rank, RankInfo num_ranks, Simulation_impl & instance);
 
     /**
      * Used to signify the end of simulation.  Cleans up any existing Simulation Objects

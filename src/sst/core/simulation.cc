@@ -177,6 +177,15 @@ Simulation_impl::createSimulation(Config* config, RankInfo my_rank, RankInfo num
     return instance;
 }
 
+void Simulation_impl::makeSimulation(Config* config, RankInfo my_rank, RankInfo num_ranks, Simulation_impl & instance)
+{
+    const thread_id_t tid = THIS_THREAD_ID();
+    std::lock_guard<mutex_t> lock(simulationMutex);
+    instanceMap[tid] = &instance;
+    instanceVec[my_rank.thread] = &instance;
+    instance.intializeDefaultProfileTools(config->enabledProfiling());
+}
+
 void
 Simulation_impl::shutdown()
 {
