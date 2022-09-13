@@ -20,7 +20,7 @@
 #include <hpx/hpx_main.hpp>
 #include <hpx/modules/runtime_local.hpp>
 #include <hpx/modules/resource_partitioner.hpp>
-#include <hpx/local/barrier.hpp>
+#include <hpx/synchronization/barrier.hpp>
 #include <hpx/local/runtime.hpp>
 #include <hpx/local/thread.hpp>
 #include <hpx/thread.hpp>
@@ -29,7 +29,8 @@
 using barrier_t = hpx::barrier<>;
 using thread_t = hpx::thread;
 
-#define BARRIER_WAIT(b) b.wait(b.arrive())
+//#define BARRIER_WAIT(b) b.wait(b.arrive())
+#define BARRIER_WAIT(b) b.arrive_and_wait()
 #define THIS_THREAD_ID() hpx::this_thread::get_id()
 
 #else
@@ -574,7 +575,6 @@ main(int argc, char* argv[])
         }
     }
 
-
     // Create the model generator
     SSTModelDescription* modelGen = nullptr;
 
@@ -897,7 +897,7 @@ main(int argc, char* argv[])
 
         for ( uint32_t i = 1; i < world_size.thread; i++ ) {
 #if defined(SST_ENABLE_HPX)
-            threads.emplace_back(std::move(thread_t{start_simulation, i, std::ref(threadInfo[i]), std::ref(mainBarrier)}));
+            threads.emplace_back(thread_t{start_simulation, i, std::ref(threadInfo[i]), std::ref(mainBarrier)});
 #else
             threads[i] = thread_t(start_simulation, i, std::ref(threadInfo[i]), std::ref(mainBarrier));
 #endif

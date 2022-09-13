@@ -287,9 +287,15 @@ if(APPLE)
                       "LINKER:-undefined,dynamic_lookup")
 endif()
 
-if(Threads_FOUND)
-  target_link_libraries(sstinfo.x PRIVATE Threads::Threads)
-  target_link_libraries(sstsim.x PRIVATE Threads::Threads)
+if(SST_ENABLE_HPX)
+  if(NOT HPX_FOUND)
+
+    if(Threads_FOUND)
+      target_link_libraries(sstinfo.x PRIVATE Threads::Threads)
+      target_link_libraries(sstsim.x PRIVATE Threads::Threads)
+    endif()
+
+  endif()
 endif()
 
 add_executable(sst bootsst.cc)

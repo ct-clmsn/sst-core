@@ -41,6 +41,7 @@ extern int main(int argc, char** argv);
 #define SST_PROFILE_TOOL_CUSTOM_START 4
 
 #if defined(SST_ENABLE_HPX)
+#include <hpx/synchronization/barrier.hpp>
 using thread_id_t = hpx::thread::id;
 using mutex_t = hpx::mutex;
 using barrier_t = hpx::barrier<>;
