@@ -27,17 +27,17 @@
 #include <hpx/thread.hpp>
 #include <hpx/iostream.hpp>
 
-using mbarrier_t = hpx::lcos::local::barrier;
+using mainbarrier_t = hpx::lcos::local::barrier;
 using thread_t = hpx::thread;
-#define MBARRIER_WAIT(b) b.wait()
+#define MAINBARRIER_WAIT(b) b.wait()
 
 #else
 
 #include <thread>
 
-using mbarrier_t = Core::ThreadSafe::Barrier;
+using mainbarrier_t = Core::ThreadSafe::Barrier;
 using thread_t = std::thread;
-#define MBARRIER_WAIT(b) b.wait()
+#define MAINBARRIER_WAIT(b) b.wait()
 
 #endif
 
@@ -345,7 +345,7 @@ struct SimThreadParam {
 };
 
 static void
-start_simulation(SimThreadParam& p, mbarrier_t& barrier)
+start_simulation(SimThreadParam& p, mainbarrier_t& barrier)
 {
     p.info.myRank.thread = p.tid;
     double start_build = sst_get_cpu_time();
@@ -358,27 +358,27 @@ start_simulation(SimThreadParam& p, mbarrier_t& barrier)
     ////// Create Simulation Objects //////
     p.sims[p.tid] = Simulation_impl::createSimulation(p.info.config, p.info.myRank, p.info.world_size);
 
-    MBARRIER_WAIT(barrier);
+    MAINBARRIER_WAIT(barrier);
 
     p.sims[p.tid]->processGraphInfo(*p.info.graph, p.info.myRank, p.info.min_part);
 
-    MBARRIER_WAIT(barrier);
+    MAINBARRIER_WAIT(barrier);
 
     force_rank_sequential_start(*p.info.config, p.info.myRank, p.info.world_size);
 
-    MBARRIER_WAIT(barrier);
+    MAINBARRIER_WAIT(barrier);
 
     // Perform the wireup.  Do this one thread at a time for now.  If
     // this ever changes, then need to put in some serialization into
     // performWireUp.
     for ( uint32_t i = 0; i < p.info.world_size.thread; ++i ) {
         if ( i == p.info.myRank.thread ) { do_link_preparation(p.info.graph, p.sims[p.tid], p.info.myRank, p.info.min_part); }
-        MBARRIER_WAIT(barrier);
+        MAINBARRIER_WAIT(barrier);
     }
 
     for ( uint32_t i = 0; i < p.info.world_size.thread; ++i ) {
         if ( i == p.info.myRank.thread ) { do_graph_wireup(p.info.graph, p.sims[p.tid], p.info.myRank, p.info.min_part); }
-        MBARRIER_WAIT(barrier);
+        MAINBARRIER_WAIT(barrier);
     }
 
     if ( p.tid == 0 ) {
@@ -391,13 +391,13 @@ start_simulation(SimThreadParam& p, mbarrier_t& barrier)
 
     force_rank_sequential_stop(*p.info.config, p.info.myRank, p.info.world_size);
 
-    MBARRIER_WAIT(barrier);
+    MAINBARRIER_WAIT(barrier);
 
 #ifdef SST_CONFIG_HAVE_MPI
     if ( p.tid == 0 && p.info.world_size.rank > 1 ) { MPI_Barrier(MPI_COMM_WORLD); }
 #endif
 
-    MBARRIER_WAIT(barrier);
+    MAINBARRIER_WAIT(barrier);
 
     if ( p.info.config->runMode() == Simulation::RUN || p.info.config->runMode() == Simulation::BOTH ) {
         if ( p.info.config->verbose() && 0 == p.tid ) {
@@ -451,27 +451,27 @@ start_simulation(SimThreadParam& p, mbarrier_t& barrier)
             Factory::getFactory()->loadUnloadedLibraries(p.lib_names);
 #endif
         }
-        MBARRIER_WAIT(barrier);
+        MAINBARRIER_WAIT(barrier);
 
         p.sims[p.tid]->initialize();
-        MBARRIER_WAIT(barrier);
+        MAINBARRIER_WAIT(barrier);
 
         /* Run Set */
         p.sims[p.tid]->setup();
-        MBARRIER_WAIT(barrier);
+        MAINBARRIER_WAIT(barrier);
 
         /* Run Simulation */
         p.sims[p.tid]->run();
-        MBARRIER_WAIT(barrier);
+        MAINBARRIER_WAIT(barrier);
 
         p.sims[p.tid]->complete();
-        MBARRIER_WAIT(barrier);
+        MAINBARRIER_WAIT(barrier);
 
         p.sims[p.tid]->finish();
-        MBARRIER_WAIT(barrier);
+        MAINBARRIER_WAIT(barrier);
     }
 
-    MBARRIER_WAIT(barrier);
+    MAINBARRIER_WAIT(barrier);
 
     p.info.simulated_time = p.sims[p.tid]->getFinalSimTime();
     // g_output.output(CALL_INFO,"Simulation time = %s\n",info.simulated_time.toStringBestSI().c_str());
@@ -831,7 +831,7 @@ main(int argc, char* argv[])
     ///// End Set up StatisticEngine /////
 
     ////// Create Simulation //////
-    mbarrier_t mainBarrier(world_size.thread);
+    mainbarrier_t mainBarrier(world_size.thread);
 
     Simulation_impl::factory    = factory;
     Simulation_impl::sim_output = g_output;
@@ -877,7 +877,6 @@ main(int argc, char* argv[])
         for ( uint32_t i = 1; i < world_size.thread; i++ ) {
             params.emplace_back(std::move(SimThreadParam{i, threadInfo[i], Simulation_impl::instanceVec}));
 #if defined(SST_ENABLE_HPX)
-            //threads.emplace_back(std::move(thread_t{start_simulation, std::ref(sims[i]), std::ref(threadInfo[i]), std::ref(mainBarrier)}));
             threads.emplace_back(std::move(thread_t{start_simulation, std::ref(params[i]), std::ref(mainBarrier)}));
 #else
             threads[i] = std::thread(start_simulation, std::ref(params[i]), std::ref(mainBarrier));
@@ -886,8 +885,13 @@ main(int argc, char* argv[])
         }
 
         start_simulation(params[0], mainBarrier);
+
         for ( uint32_t i = 1; i < world_size.thread; i++ ) {
+#if defined(SST_ENABLE_HPX)
+            threads[i-1].join();
+#else
             threads[i].join();
+#endif
         }
 
         Simulation_impl::shutdown();
