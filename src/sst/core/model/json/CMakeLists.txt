@@ -11,6 +11,12 @@ add_library(
   modeljson OBJECT
   jsonmodel.cc)
 
+if(SST_ENABLE_TCMALLOC)
+    target_link_libraries(
+        modeljson INTERFACE ${TCMALLOC_LIBRARIES}
+    )
+endif(SST_ENABLE_TCMALLOC)
+
 target_include_directories(modeljson PUBLIC ${SST_TOP_SRC_DIR}/src/)
 target_link_libraries(modeljson PRIVATE sst-config-headers nlohjson)
 

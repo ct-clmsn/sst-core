@@ -19,4 +19,10 @@ if(MPI_FOUND)
   target_link_libraries(sync PRIVATE MPI::MPI_CXX)
 endif(MPI_FOUND)
 
+if(SST_ENABLE_TCMALLOC)
+    target_link_libraries(
+        sync INTERFACE ${TCMALLOC_LIBRARIES}
+    )
+endif(SST_ENABLE_TCMALLOC)
+
 # EOF

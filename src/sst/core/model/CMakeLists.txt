@@ -11,6 +11,13 @@ add_subdirectory(python)
 add_subdirectory(json)
 
 add_library(modelCore OBJECT sstmodel.cc element_python.cc)
+
+if(SST_ENABLE_TCMALLOC)
+    target_link_libraries(
+        modelCore INTERFACE ${TCMALLOC_LIBRARIES}
+    )
+endif(SST_ENABLE_TCMALLOC)
+
 target_include_directories(modelCore PUBLIC ${SST_TOP_SRC_DIR}/src)
 target_link_libraries(modelCore PRIVATE sst-config-headers Python::Python)
 

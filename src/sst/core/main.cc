@@ -307,10 +307,18 @@ struct SimThreadParam {
     const uint32_t tid;
     SimThreadInfo_t & info;
     SST::Simulation_impl* sim;
+#ifdef SST_CONFIG_HAVE_MPI
+    std::set<std::string> lib_names;
+    std::set<std::string> other_lib_names;
+#endif
 
     SimThreadParam(const uint32_t thrid, SimThreadInfo_t & inf)
-        : tid(thrid), info(inf), sim(nullptr) {
-    }
+#ifdef SST_CONFIG_HAVE_MPI
+        : tid(thrid), info(inf), sim(nullptr), lib_names(), other_lib_names()
+#else
+        : tid(thrid), info(inf), sim(nullptr)
+#endif
+    {}
 };
 
 static void
@@ -397,29 +405,27 @@ start_simulation(SimThreadParam& p, Core::ThreadSafe::Barrier& barrier)
             // If we are a MPI_parallel job, need to makes sure that all used
             // libraries are loaded on all ranks.
 #ifdef SST_CONFIG_HAVE_MPI
-            set<string> lib_names;
-            set<string> other_lib_names;
-            Factory::getFactory()->getLoadedLibraryNames(lib_names);
+            Factory::getFactory()->getLoadedLibraryNames(p.lib_names);
             // vector<set<string> > all_lib_names;
 
             // Send my lib_names to the next lowest rank
             if ( p.info.myRank.rank == (p.info.world_size.rank - 1) ) {
-                Comms::send(p.info.myRank.rank - 1, 0, lib_names);
-                lib_names.clear();
+                Comms::send(p.info.myRank.rank - 1, 0, p.lib_names);
+                p.lib_names.clear();
             }
             else {
                 Comms::recv(p.info.myRank.rank + 1, 0, other_lib_names);
-                for ( auto iter = other_lib_names.begin(); iter != other_lib_names.end(); ++iter ) {
-                    lib_names.insert(*iter);
+                for ( auto iter = p.other_lib_names.begin(); iter != p.other_lib_names.end(); ++iter ) {
+                    p.lib_names.insert(*iter);
                 }
                 if ( p.info.myRank.rank != 0 ) {
-                    Comms::send(p.info.myRank.rank - 1, 0, lib_names);
-                    lib_names.clear();
+                    Comms::send(p.info.myRank.rank - 1, 0, p.lib_names);
+                    p.lib_names.clear();
                 }
             }
 
             Comms::broadcast(lib_names, 0);
-            Factory::getFactory()->loadUnloadedLibraries(lib_names);
+            Factory::getFactory()->loadUnloadedLibraries(p.lib_names);
 #endif
         }
         barrier.wait();
@@ -865,6 +871,8 @@ main(int argc, char* argv[])
 
     double end_serial_build = sst_get_cpu_time();
 
+    {
+
     std::vector<SimThreadParam> params;
     params.reserve(1+world_size.thread);
     params.emplace_back(std::move(SimThreadParam{0, threadInfo[0]}));
@@ -886,6 +894,8 @@ main(int argc, char* argv[])
     }
     catch ( std::exception& e ) {
         g_output.fatal(CALL_INFO, -1, "Error encountered during simulation: %s\n", e.what());
+    }
+
     }
 
     double total_end_time = sst_get_cpu_time();
