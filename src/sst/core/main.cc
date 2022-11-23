@@ -303,63 +303,73 @@ finalize_statEngineConfig(void)
     StatisticProcessingEngine::getInstance()->finalizeInitialization();
 }
 
+struct SimThreadParam {
+    const uint32_t tid;
+    SimThreadInfo_t & info;
+    SST::Simulation_impl* sim;
+
+    SimThreadParam(const uint32_t thrid, SimThreadInfo_t & inf)
+        : tid(thrid), info(inf), sim(nullptr) {
+    }
+};
+
 static void
-start_simulation(uint32_t tid, SimThreadInfo_t& info, Core::ThreadSafe::Barrier& barrier)
+start_simulation(SimThreadParam& p, Core::ThreadSafe::Barrier& barrier)
 {
-    info.myRank.thread = tid;
+    p.info.myRank.thread = p.tid;
     double start_build = sst_get_cpu_time();
 
-    if ( tid ) {
+    if ( p.tid ) {
         /* already did Thread Rank 0 in main() */
-        setupSignals(tid);
+        setupSignals(p.tid);
     }
 
     ////// Create Simulation Objects //////
-    SST::Simulation_impl* sim = Simulation_impl::createSimulation(info.config, info.myRank, info.world_size);
+    p.sim = Simulation_impl::createSimulation(p.info.config, p.info.myRank, p.info.world_size);
 
     barrier.wait();
 
-    sim->processGraphInfo(*info.graph, info.myRank, info.min_part);
+    p.sim->processGraphInfo(*p.info.graph, p.info.myRank, p.info.min_part);
 
     barrier.wait();
 
-    force_rank_sequential_start(*info.config, info.myRank, info.world_size);
+    force_rank_sequential_start(*p.info.config, p.info.myRank, p.info.world_size);
 
     barrier.wait();
 
     // Perform the wireup.  Do this one thread at a time for now.  If
     // this ever changes, then need to put in some serialization into
     // performWireUp.
-    for ( uint32_t i = 0; i < info.world_size.thread; ++i ) {
-        if ( i == info.myRank.thread ) { do_link_preparation(info.graph, sim, info.myRank, info.min_part); }
+    for ( uint32_t i = 0; i < p.info.world_size.thread; ++i ) {
+        if ( i == p.info.myRank.thread ) { do_link_preparation(p.info.graph, p.sim, p.info.myRank, p.info.min_part); }
         barrier.wait();
     }
 
-    for ( uint32_t i = 0; i < info.world_size.thread; ++i ) {
-        if ( i == info.myRank.thread ) { do_graph_wireup(info.graph, sim, info.myRank, info.min_part); }
+    for ( uint32_t i = 0; i < p.info.world_size.thread; ++i ) {
+        if ( i == p.info.myRank.thread ) { do_graph_wireup(p.info.graph, p.sim, p.info.myRank, p.info.min_part); }
         barrier.wait();
     }
 
-    if ( tid == 0 ) {
+    if ( p.tid == 0 ) {
         finalize_statEngineConfig();
-        delete info.graph;
+        delete p.info.graph;
     }
 
     double start_run = sst_get_cpu_time();
-    info.build_time  = start_run - start_build;
+    p.info.build_time  = start_run - start_build;
 
-    force_rank_sequential_stop(*info.config, info.myRank, info.world_size);
+    force_rank_sequential_stop(*p.info.config, p.info.myRank, p.info.world_size);
 
     barrier.wait();
 
 #ifdef SST_CONFIG_HAVE_MPI
-    if ( tid == 0 && info.world_size.rank > 1 ) { MPI_Barrier(MPI_COMM_WORLD); }
+    if ( p.tid == 0 && p.info.world_size.rank > 1 ) { MPI_Barrier(MPI_COMM_WORLD); }
 #endif
 
     barrier.wait();
 
-    if ( info.config->runMode() == Simulation::RUN || info.config->runMode() == Simulation::BOTH ) {
-        if ( info.config->verbose() && 0 == tid ) {
+    if ( p.info.config->runMode() == Simulation::RUN || p.info.config->runMode() == Simulation::BOTH ) {
+        if ( p.info.config->verbose() && 0 == p.tid ) {
             g_output.verbose(CALL_INFO, 1, 0, "# Starting main event loop\n");
 
             time_t     the_time = time(nullptr);
@@ -369,21 +379,21 @@ start_simulation(uint32_t tid, SimThreadInfo_t& info, Core::ThreadSafe::Barrier&
                 CALL_INFO, 1, 0, "# Start time: %04u/%02u/%02u at: %02u:%02u:%02u\n", (now->tm_year + 1900),
                 (now->tm_mon + 1), now->tm_mday, now->tm_hour, now->tm_min, now->tm_sec);
 
-            if ( info.config->exit_after() > 0 ) {
-                time_t     stop_time = the_time + info.config->exit_after();
+            if ( p.info.config->exit_after() > 0 ) {
+                time_t     stop_time = the_time + p.info.config->exit_after();
                 struct tm* end       = localtime(&stop_time);
                 g_output.verbose(
                     CALL_INFO, 1, 0, "# Will end by: %04u/%02u/%02u at: %02u:%02u:%02u\n", (end->tm_year + 1900),
                     (end->tm_mon + 1), end->tm_mday, end->tm_hour, end->tm_min, end->tm_sec);
 
                 /* Set the alarm */
-                alarm(info.config->exit_after());
+                alarm(p.info.config->exit_after());
             }
         }
         // g_output.output("info.config.stopAtCycle = %s\n",info.config->stopAtCycle.c_str());
-        sim->setStopAtCycle(info.config);
+        p.sim->setStopAtCycle(p.info.config);
 
-        if ( tid == 0 && info.world_size.rank > 1 ) {
+        if ( p.tid == 0 && p.info.world_size.rank > 1 ) {
             // If we are a MPI_parallel job, need to makes sure that all used
             // libraries are loaded on all ranks.
 #ifdef SST_CONFIG_HAVE_MPI
@@ -393,17 +403,17 @@ start_simulation(uint32_t tid, SimThreadInfo_t& info, Core::ThreadSafe::Barrier&
             // vector<set<string> > all_lib_names;
 
             // Send my lib_names to the next lowest rank
-            if ( info.myRank.rank == (info.world_size.rank - 1) ) {
-                Comms::send(info.myRank.rank - 1, 0, lib_names);
+            if ( p.info.myRank.rank == (p.info.world_size.rank - 1) ) {
+                Comms::send(p.info.myRank.rank - 1, 0, lib_names);
                 lib_names.clear();
             }
             else {
-                Comms::recv(info.myRank.rank + 1, 0, other_lib_names);
+                Comms::recv(p.info.myRank.rank + 1, 0, other_lib_names);
                 for ( auto iter = other_lib_names.begin(); iter != other_lib_names.end(); ++iter ) {
                     lib_names.insert(*iter);
                 }
-                if ( info.myRank.rank != 0 ) {
-                    Comms::send(info.myRank.rank - 1, 0, lib_names);
+                if ( p.info.myRank.rank != 0 ) {
+                    Comms::send(p.info.myRank.rank - 1, 0, lib_names);
                     lib_names.clear();
                 }
             }
@@ -414,36 +424,36 @@ start_simulation(uint32_t tid, SimThreadInfo_t& info, Core::ThreadSafe::Barrier&
         }
         barrier.wait();
 
-        sim->initialize();
+        p.sim->initialize();
         barrier.wait();
 
         /* Run Set */
-        sim->setup();
+        p.sim->setup();
         barrier.wait();
 
         /* Run Simulation */
-        sim->run();
+        p.sim->run();
         barrier.wait();
 
-        sim->complete();
+        p.sim->complete();
         barrier.wait();
 
-        sim->finish();
+        p.sim->finish();
         barrier.wait();
     }
 
     barrier.wait();
 
-    info.simulated_time = sim->getFinalSimTime();
+    p.info.simulated_time = p.sim->getFinalSimTime();
     // g_output.output(CALL_INFO,"Simulation time = %s\n",info.simulated_time.toStringBestSI().c_str());
 
     double end_time = sst_get_cpu_time();
-    info.run_time   = end_time - start_run;
+    p.info.run_time   = end_time - start_run;
 
-    info.max_tv_depth     = sim->getTimeVortexMaxDepth();
-    info.current_tv_depth = sim->getTimeVortexCurrentDepth();
+    p.info.max_tv_depth     = p.sim->getTimeVortexMaxDepth();
+    p.info.current_tv_depth = p.sim->getTimeVortexCurrentDepth();
 
-    delete sim;
+    delete p.sim;
 }
 
 int
@@ -855,14 +865,19 @@ main(int argc, char* argv[])
 
     double end_serial_build = sst_get_cpu_time();
 
+    std::vector<SimThreadParam> params;
+    params.reserve(1+world_size.thread);
+    params.emplace_back(std::move(SimThreadParam{0, threadInfo[0]}));
+
     try {
         Output::setThreadID(std::this_thread::get_id(), 0);
         for ( uint32_t i = 1; i < world_size.thread; i++ ) {
-            threads[i] = std::thread(start_simulation, i, std::ref(threadInfo[i]), std::ref(mainBarrier));
+            params.emplace_back(std::move(SimThreadParam{i, threadInfo[i]}));
+            threads[i] = std::thread(start_simulation, std::ref(params[i]), std::ref(mainBarrier));
             Output::setThreadID(threads[i].get_id(), i);
         }
 
-        start_simulation(0, threadInfo[0], mainBarrier);
+        start_simulation(params[0], mainBarrier);
         for ( uint32_t i = 1; i < world_size.thread; i++ ) {
             threads[i].join();
         }
