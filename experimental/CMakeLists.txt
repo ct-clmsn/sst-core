@@ -63,6 +63,19 @@ if(NOT SST_DISABLE_MPI)
   find_package(MPI REQUIRED)
 endif()
 
+option(SST_ENABLE_TCMALLOC "Compile with tcmalloc" OFF)
+if(SST_ENABLE_TCMALLOC)
+    message(STATUS "Configured with tcmalloc support!")
+
+    find_package(TCMalloc REQUIRED)
+
+    if(NOT TCMALLOC_LIBRARIES)
+        message(FATAL_ERROR "tcmalloc enabled but not detected on this system")
+    endif()
+else()
+    message(STATUS "Configured without tcmalloc support!")
+endif()
+
 # sst sets all the variables needed for our *.in files
 include(sst REQUIRED)
 # Don't change this path to SST_TOP_SRC_DIR this lives in experimental for now.

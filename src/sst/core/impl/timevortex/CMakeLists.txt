@@ -14,6 +14,12 @@
 
 add_library(timeVortex OBJECT timeVortexPQ.cc)
 
+if(SST_ENABLE_TCMALLOC)
+    target_link_libraries(
+        timeVortex INTERFACE ${TCMALLOC_LIBRARIES}
+    )
+endif(SST_ENABLE_TCMALLOC)
+
 target_include_directories(timeVortex PUBLIC ${SST_TOP_SRC_DIR}/src)
 target_link_libraries(timeVortex PUBLIC sst-config-headers)
 

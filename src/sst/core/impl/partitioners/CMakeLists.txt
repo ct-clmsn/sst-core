@@ -15,6 +15,12 @@
 add_library(partitioner OBJECT linpart.cc rrobin.cc selfpart.cc simplepart.cc
                                singlepart.cc)
 
+if(SST_ENABLE_TCMALLOC)
+    target_link_libraries(
+        partitioner INTERFACE ${TCMALLOC_LIBRARIES}
+    )
+endif(SST_ENABLE_TCMALLOC)
+
 target_include_directories(partitioner PUBLIC ${SST_TOP_SRC_DIR}/src/)
 target_link_libraries(partitioner PUBLIC sst-config-headers)
 

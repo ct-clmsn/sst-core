@@ -165,6 +165,12 @@ else()
   target_compile_definitions(sst-core-lib PUBLIC SST_BUILDING_CORE=1)
 endif()
 
+if(SST_ENABLE_TCMALLOC)
+    target_link_libraries(
+        sst-core-lib INTERFACE ${TCMALLOC_LIBRARIES}
+    )
+endif(SST_ENABLE_TCMALLOC)
+
 if(SST_ENABLE_EVENT_TRACKING)
   target_compile_definitions(sst-core-lib PUBLIC __SST_DEBUG_EVENT_TRACKING__=1)
 endif(SST_ENABLE_EVENT_TRACKING)
@@ -205,10 +211,24 @@ if(ZLIB_FOUND)
 endif()
 
 add_library(sst-boot-lib OBJECT bootshared.cc)
+
+if(SST_ENABLE_TCMALLOC)
+    target_link_libraries(
+        sst-boot-lib INTERFACE ${TCMALLOC_LIBRARIES}
+    )
+endif(SST_ENABLE_TCMALLOC)
+
 target_link_libraries(sst-boot-lib PUBLIC sst-config-headers)
 target_include_directories(sst-boot-lib PUBLIC ${SST_TOP_SRC_DIR}/src)
 
 add_library(sst-env-lib OBJECT env/envquery.cc env/envconfig.cc)
+
+if(SST_ENABLE_TCMALLOC)
+    target_link_libraries(
+        sst-env-lib INTERFACE ${TCMALLOC_LIBRARIES}
+    )
+endif(SST_ENABLE_TCMALLOC)
+
 target_link_libraries(sst-env-lib PUBLIC sst-config-headers)
 target_include_directories(sst-env-lib PUBLIC ${SST_TOP_SRC_DIR}/src)
 
@@ -311,17 +331,41 @@ if(SST_ENABLE_HPX)
   endif()
 else()
 
+    if(SST_ENABLE_TCMALLOC)
+        target_link_libraries(
+           sst INTERFACE ${TCMALLOC_LIBRARIES}
+        )
+    endif(SST_ENABLE_TCMALLOC)
+
   target_link_libraries(sst PRIVATE sst-boot-lib sst-env-lib)
 
 endif()
 
 add_executable(sst-info bootsstinfo.cc)
+if(SST_ENABLE_TCMALLOC)
+    target_link_libraries(
+        sst-info INTERFACE ${TCMALLOC_LIBRARIES}
+    )
+endif(SST_ENABLE_TCMALLOC)
+
 target_link_libraries(sst-info PRIVATE sst-boot-lib sst-env-lib)
 
 add_executable(sst-config sstconfigtool.cc)
+if(SST_ENABLE_TCMALLOC)
+    target_link_libraries(
+        sst-config INTERFACE ${TCMALLOC_LIBRARIES}
+    )
+endif(SST_ENABLE_TCMALLOC)
+
 target_link_libraries(sst-config PRIVATE sst-env-lib)
 
 add_executable(sst-register sstregistertool.cc)
+if(SST_ENABLE_TCMALLOC)
+    target_link_libraries(
+        sst-register INTERFACE ${TCMALLOC_LIBRARIES}
+    )
+endif(SST_ENABLE_TCMALLOC)
+
 target_link_libraries(sst-register PRIVATE sst-env-lib)
 
 install(TARGETS sst sst-info sst-config sst-register)

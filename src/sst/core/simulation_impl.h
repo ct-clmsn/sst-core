@@ -42,11 +42,13 @@ extern int main(int argc, char** argv);
 
 #if defined(SST_ENABLE_HPX)
 
+#include <hpx/synchronization/mutex.hpp>
 #include <hpx/synchronization/barrier.hpp>
+
 using thread_id_t = hpx::thread::id;
-using mutex_t = hpx::mutex;
-using barrier_t = hpx::barrier<>;
-#define BARRIER_WAIT(b) b.arrive_and_wait()
+using mutex_t = hpx::lcos::local::mutex;
+using barrier_t = std::shared_ptr<hpx::lcos::local::barrier>;
+#define BARRIER_WAIT(b) b->wait()
 using thread_t = hpx::thread;
 #define THIS_THREAD_ID() hpx::this_thread::get_id()
 
@@ -351,14 +353,6 @@ public:
     /** Factory used to generate the simulation components */
     static Factory* factory;
 
-#if defined(SST_ENABLE_HPX)
-    barrier_t initBarrier;
-    barrier_t completeBarrier;
-    barrier_t setupBarrier;
-    barrier_t runBarrier;
-    barrier_t exitBarrier;
-    barrier_t finishBarrier;
-#else
     static void                      resizeBarriers(uint32_t nthr);
     static barrier_t initBarrier;
     static barrier_t completeBarrier;
@@ -366,7 +360,7 @@ public:
     static barrier_t runBarrier;
     static barrier_t exitBarrier;
     static barrier_t finishBarrier;
-#endif
+
     static mutex_t                simulationMutex;
 
     static std::map<LinkId_t, Link*> cross_thread_links;

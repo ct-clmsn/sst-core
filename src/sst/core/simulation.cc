@@ -212,17 +212,7 @@ Simulation_impl::Simulation_impl(Config* cfg, RankInfo my_rank, RankInfo num_ran
     init_phase_start_time(0.0),
     init_phase_total_time(0.0),
     complete_phase_start_time(0.0),
-#if defined(SST_ENABLE_HPX)
-    complete_phase_total_time(0.0),
-    initBarrier(num_ranks.thread),
-    completeBarrier(num_ranks.thread),
-    setupBarrier(num_ranks.thread),
-    runBarrier(num_ranks.thread),
-    exitBarrier(num_ranks.thread),
-    finishBarrier(num_ranks.thread)
-#else
     complete_phase_total_time(0.0)
-#endif
 {
     sim_output.init(cfg->output_core_prefix(), cfg->verbose(), 0, Output::STDOUT);
     output_directory = cfg->output_directory();
@@ -1075,19 +1065,25 @@ wait_my_turn_end(barrier_t& barrier, int thread, int total_threads)
     BARRIER_WAIT(barrier);
 }
 
-#if !defined(SST_ENABLE_HPX)
 void
 Simulation_impl::resizeBarriers(uint32_t nthr)
 {
+#if defined(SST_ENABLE_HPX)
+    initBarrier.reset(new hpx::lcos::local::barrier{nthr});
+    completeBarrier.reset(new hpx::lcos::local::barrier{nthr});
+    setupBarrier.reset(new hpx::lcos::local::barrier{nthr});
+    runBarrier.reset(new hpx::lcos::local::barrier{nthr});
+    exitBarrier.reset(new hpx::lcos::local::barrier{nthr});
+    finishBarrier.reset(new hpx::lcos::local::barrier{nthr});
+#else
     initBarrier.resize(nthr);
     completeBarrier.resize(nthr);
     setupBarrier.resize(nthr);
     runBarrier.resize(nthr);
     exitBarrier.resize(nthr);
     finishBarrier.resize(nthr);
-}
 #endif
-
+}
 
 void
 Simulation_impl::intializeDefaultProfileTools(const std::string& config)
@@ -1276,14 +1272,22 @@ TimeLord                  Simulation_impl::timeLord;
 std::map<LinkId_t, Link*> Simulation_impl::cross_thread_links;
 Output                    Simulation_impl::sim_output;
 
-#if !defined(SST_ENABLE_HPX)
-barrier_t Simulation_impl::initBarrier{0};
-barrier_t Simulation_impl::completeBarrier{0};
-barrier_t Simulation_impl::setupBarrier{0};
-barrier_t Simulation_impl::runBarrier{0};
-barrier_t Simulation_impl::exitBarrier{0};
-barrier_t Simulation_impl::finishBarrier{0};
+#if defined(SST_ENABLE_HPX)
+barrier_t Simulation_impl::initBarrier = std::make_shared<hpx::lcos::local::barrier>(1);
+barrier_t Simulation_impl::completeBarrier = std::make_shared<hpx::lcos::local::barrier>(1);
+barrier_t Simulation_impl::setupBarrier = std::make_shared<hpx::lcos::local::barrier>(1); 
+barrier_t Simulation_impl::runBarrier = std::make_shared<hpx::lcos::local::barrier>(1);
+barrier_t Simulation_impl::exitBarrier = std::make_shared<hpx::lcos::local::barrier>(1);
+barrier_t Simulation_impl::finishBarrier = std::make_shared<hpx::lcos::local::barrier>(1);
+#else
+barrier_t Simulation_impl::initBarrier;
+barrier_t Simulation_impl::completeBarrier;
+barrier_t Simulation_impl::setupBarrier;
+barrier_t Simulation_impl::runBarrier;
+barrier_t Simulation_impl::exitBarrier;
+barrier_t Simulation_impl::finishBarrier;
 #endif
+
 mutex_t                   Simulation_impl::simulationMutex;
 TimeConverter*            Simulation_impl::minPartTC = nullptr;
 SimTime_t                 Simulation_impl::minPart;
