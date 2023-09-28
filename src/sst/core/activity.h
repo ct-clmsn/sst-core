@@ -18,6 +18,24 @@
 #include "sst/core/sst_types.h"
 #include "sst/core/warnmacros.h"
 
+#if defined(SST_ENABLE_HPX)
+
+#include <hpx/synchronization/mutex.hpp>
+#include <hpx/synchronization/barrier.hpp>
+
+using thread_id_t = hpx::thread::id;
+using mutex_t = hpx::mutex;
+#define THIS_THREAD_ID() hpx::this_thread::get_id()
+
+#else
+
+#include <thread>
+using thread_id_t = std::thread::id;
+using mutex_t = std::mutex;
+#define THIS_THREAD_ID() std::this_thread::get_id()
+
+#endif
+
 #include <cinttypes>
 #include <cstring>
 #include <errno.h>
@@ -230,19 +248,18 @@ private:
     // the insertion order
     uint64_t  queue_order;
 
-
 #ifdef USE_MEMPOOL
     friend int ::main(int argc, char** argv);
     /* Defined in event.cc */
     typedef Core::MemPool* PoolData_t;
     struct PoolInfo_t
     {
-        std::thread::id tid;
+        thread_id_t tid;
         size_t          size;
         Core::MemPool*  pool;
-        PoolInfo_t(std::thread::id tid, size_t size, Core::MemPool* pool) : tid(tid), size(size), pool(pool) {}
+        PoolInfo_t(thread_id_t tid, size_t size, Core::MemPool* pool) : tid(tid), size(size), pool(pool) {}
     };
-    static std::mutex              poolMutex;
+    static mutex_t poolMutex;
     static std::vector<PoolInfo_t> memPools;
 
 public:
@@ -256,7 +273,7 @@ public:
          */
         Core::MemPool*  pool   = nullptr;
         size_t          nPools = memPools.size();
-        std::thread::id tid    = std::this_thread::get_id();
+        thread_id_t tid    = THIS_THREAD_ID();
         for ( size_t i = 0; i < nPools; i++ ) {
             PoolInfo_t& p = memPools[i];
             if ( p.tid == tid && p.size == size ) {
@@ -268,7 +285,7 @@ public:
             /* Still can't find it, alloc a new one */
             pool = new Core::MemPool(size + sizeof(PoolData_t));
 
-            std::lock_guard<std::mutex> lock(poolMutex);
+            std::lock_guard<mutex_t> lock(poolMutex);
             memPools.emplace_back(tid, size, pool);
         }
 

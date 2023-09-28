@@ -66,17 +66,17 @@ abortOnPyErr(uint32_t line, const char* file, const char* func, uint32_t exit_co
     while ( ptb != nullptr ) {
         // Filename
 #ifdef SST_CONFIG_HAVE_PYTHON3
-        stream << "File \"" << PyUnicode_AsUTF8(ptb->tb_frame->f_code->co_filename) << "\", ";
+//        stream << "File \"" << PyUnicode_AsUTF8(ptb->tb_frame->f_code->co_filename) << "\", ";
 #else
-        stream << "File \"" << PyString_AsString(ptb->tb_frame->f_code->co_filename) << "\", ";
+//        stream << "File \"" << PyString_AsString(ptb->tb_frame->f_code->co_filename) << "\", ";
 #endif
         // Line number
         stream << "line " << ptb->tb_lineno << ", ";
         // Module name
 #ifdef SST_CONFIG_HAVE_PYTHON3
-        stream << PyUnicode_AsUTF8(ptb->tb_frame->f_code->co_name) << "\n";
+//        stream << PyUnicode_AsUTF8(ptb->tb_frame->f_code->co_name) << "\n";
 #else
-        stream << PyString_AsString(ptb->tb_frame->f_code->co_name) << "\n";
+//        stream << PyString_AsString(ptb->tb_frame->f_code->co_name) << "\n";
 #endif
 
         // Get the next line

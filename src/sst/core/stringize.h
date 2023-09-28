@@ -187,8 +187,14 @@ class Tokenizer
 {
 
     template <typename Func>
-    struct token_iter : public std::iterator<std::input_iterator_tag, std::string>
+    struct token_iter // : public std::iterator<std::input_iterator_tag, std::string>
     {
+        using iterator_category = std::input_iterator_tag;
+        using value_type = std::string;
+        using difference_type = ptrdiff_t;
+        using pointer = const value_type*;
+        using reference = const value_type&;
+
         Func&                       f;
         std::string::const_iterator first;
         std::string::const_iterator last;

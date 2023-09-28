@@ -1069,12 +1069,12 @@ void
 Simulation_impl::resizeBarriers(uint32_t nthr)
 {
 #if defined(SST_ENABLE_HPX)
-    initBarrier.reset(new hpx::lcos::local::barrier{nthr});
-    completeBarrier.reset(new hpx::lcos::local::barrier{nthr});
-    setupBarrier.reset(new hpx::lcos::local::barrier{nthr});
-    runBarrier.reset(new hpx::lcos::local::barrier{nthr});
-    exitBarrier.reset(new hpx::lcos::local::barrier{nthr});
-    finishBarrier.reset(new hpx::lcos::local::barrier{nthr});
+    initBarrier.reset(new hpx::barrier<>{nthr});
+    completeBarrier.reset(new hpx::barrier<>{nthr});
+    setupBarrier.reset(new hpx::barrier<>{nthr});
+    runBarrier.reset(new hpx::barrier<>{nthr});
+    exitBarrier.reset(new hpx::barrier<>{nthr});
+    finishBarrier.reset(new hpx::barrier<>{nthr});
 #else
     initBarrier.resize(nthr);
     completeBarrier.resize(nthr);
@@ -1273,12 +1273,12 @@ std::map<LinkId_t, Link*> Simulation_impl::cross_thread_links;
 Output                    Simulation_impl::sim_output;
 
 #if defined(SST_ENABLE_HPX)
-barrier_t Simulation_impl::initBarrier = std::make_shared<hpx::lcos::local::barrier>(1);
-barrier_t Simulation_impl::completeBarrier = std::make_shared<hpx::lcos::local::barrier>(1);
-barrier_t Simulation_impl::setupBarrier = std::make_shared<hpx::lcos::local::barrier>(1); 
-barrier_t Simulation_impl::runBarrier = std::make_shared<hpx::lcos::local::barrier>(1);
-barrier_t Simulation_impl::exitBarrier = std::make_shared<hpx::lcos::local::barrier>(1);
-barrier_t Simulation_impl::finishBarrier = std::make_shared<hpx::lcos::local::barrier>(1);
+barrier_t Simulation_impl::initBarrier = std::make_shared<hpx::barrier<>>(1);
+barrier_t Simulation_impl::completeBarrier = std::make_shared<hpx::barrier<>>(1);
+barrier_t Simulation_impl::setupBarrier = std::make_shared<hpx::barrier<>>(1); 
+barrier_t Simulation_impl::runBarrier = std::make_shared<hpx::barrier<>>(1);
+barrier_t Simulation_impl::exitBarrier = std::make_shared<hpx::barrier<>>(1);
+barrier_t Simulation_impl::finishBarrier = std::make_shared<hpx::barrier<>>(1);
 #else
 barrier_t Simulation_impl::initBarrier;
 barrier_t Simulation_impl::completeBarrier;

@@ -48,7 +48,7 @@ Event::generateUniqueId()
 }
 
 #ifdef USE_MEMPOOL
-std::mutex                        Activity::poolMutex;
+mutex_t                        Activity::poolMutex;
 std::vector<Activity::PoolInfo_t> Activity::memPools;
 #endif
 

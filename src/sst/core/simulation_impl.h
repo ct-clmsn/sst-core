@@ -46,9 +46,9 @@ extern int main(int argc, char** argv);
 #include <hpx/synchronization/barrier.hpp>
 
 using thread_id_t = hpx::thread::id;
-using mutex_t = hpx::lcos::local::mutex;
-using barrier_t = std::shared_ptr<hpx::lcos::local::barrier>;
-#define BARRIER_WAIT(b) b->wait()
+using mutex_t = hpx::mutex;
+using barrier_t = std::shared_ptr<hpx::barrier<>>;
+#define BARRIER_WAIT(b) b->arrive_and_wait()
 using thread_t = hpx::thread;
 #define THIS_THREAD_ID() hpx::this_thread::get_id()
 

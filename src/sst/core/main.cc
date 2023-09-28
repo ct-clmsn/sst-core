@@ -15,27 +15,22 @@
 
 #if defined(SST_ENABLE_HPX) && !defined(HPX_COMPUTE_DEVICE_CODE)
 
-#include <hpx/config.hpp>
-#include <hpx/hpx.hpp>
-//#include <hpx/hpx_start.hpp>
-#include <hpx/hpx_main.hpp>
-#include <hpx/modules/runtime_local.hpp>
-#include <hpx/modules/resource_partitioner.hpp>
+#include <hpx/execution.hpp>
+#include <hpx/hpx_start.hpp>
+#include <hpx/parallel/algorithms/for_loop.hpp>
+#include <hpx/runtime_local/run_as_hpx_thread.hpp>
 #include <hpx/synchronization/barrier.hpp>
-#include <hpx/local/runtime.hpp>
-#include <hpx/local/thread.hpp>
-#include <hpx/thread.hpp>
-#include <hpx/iostream.hpp>
 
-using mainbarrier_t = hpx::lcos::local::barrier;
+using mainbarrier_t = hpx::barrier<>;
 using thread_t = hpx::thread;
-#define MAINBARRIER_WAIT(b) b.wait()
+#define MAINBARRIER_WAIT(b) b.arrive_and_wait()
 
 #else
 
 #include <thread>
+#include "threadsafe.h"
 
-using mainbarrier_t = Core::ThreadSafe::Barrier;
+using mainbarrier_t = SST::Core::ThreadSafe::Barrier;
 using thread_t = std::thread;
 #define MAINBARRIER_WAIT(b) b.wait()
 
@@ -474,7 +469,7 @@ start_simulation(SimThreadParam& p, mainbarrier_t& barrier)
     MAINBARRIER_WAIT(barrier);
 
     p.info.simulated_time = p.sims[p.tid]->getFinalSimTime();
-    // g_output.output(CALL_INFO,"Simulation time = %s\n",info.simulated_time.toStringBestSI().c_str());
+    //g_output.output(CALL_INFO,"Simulation time = %s\n", p.info.simulated_time.toStringBestSI().c_str());
 
     double end_time = sst_get_cpu_time();
     p.info.run_time   = end_time - start_run;
@@ -488,11 +483,11 @@ start_simulation(SimThreadParam& p, mainbarrier_t& barrier)
 int
 main(int argc, char* argv[])
 {
-/*
+
 #ifdef SST_ENABLE_HPX
-    hpx::start( nullptr, argc, argv );
+    hpx::start( nullptr, 0, nullptr );
 #endif
-*/
+
 #ifdef SST_CONFIG_HAVE_MPI
     MPI_Init(&argc, &argv);
 
@@ -521,9 +516,6 @@ main(int argc, char* argv[])
         return 0;
     }
     world_size.thread = cfg.num_threads();
-
-//g_output.output("THREAD\t%d\n", world_size.thread);
-//g_output.flush();
 
     if ( cfg.parallel_load() && cfg.parallel_load_mode_multi() && world_size.rank != 1 ) {
         addRankToFileName(cfg.configFile_, myRank.rank);
@@ -616,8 +608,6 @@ main(int argc, char* argv[])
             g_output.fatal(CALL_INFO, -1, "Error encountered broadcasting configuration object: %s\n", e.what());
         }
     }
-
-
 #endif
 
     // Need to initialize TimeLord
@@ -843,29 +833,30 @@ main(int argc, char* argv[])
 #endif
 
 #if defined(SST_ENABLE_HPX)
-    std::vector<thread_t>     threads;
+    std::vector<hpx::future<void>>     threads;
     threads.reserve(world_size.thread);
-    //std::vector<SST::Simulation_impl> sims;
-    //sims.reserve(world_size.thread);
 #else
     std::vector<thread_t>     threads(world_size.thread);
 #endif
-    std::vector<SimThreadInfo_t> threadInfo(world_size.thread);
-    for ( uint32_t i = 0; i < world_size.thread; i++ ) {
-        threadInfo[i].myRank        = myRank;
-        threadInfo[i].myRank.thread = i;
-        threadInfo[i].world_size    = world_size;
-        threadInfo[i].config        = &cfg;
-        threadInfo[i].graph         = graph;
-        threadInfo[i].min_part      = min_part;
-    }
-
-    double end_serial_build = sst_get_cpu_time();
-
-    {
 
     std::vector<SimThreadParam> params;
-    params.reserve(1+world_size.thread);
+    params.reserve(world_size.thread);
+
+    std::vector<SimThreadInfo_t> threadInfo(world_size.thread);
+    double end_serial_build = sst_get_cpu_time();
+
+#if defined(SST_ENABLE_HPX)
+    hpx::threads::run_as_hpx_thread([&]()
+#endif
+    {
+
+    threadInfo[0].myRank        = myRank;
+    threadInfo[0].myRank.thread = 0;
+    threadInfo[0].world_size    = world_size;
+    threadInfo[0].config        = &cfg;
+    threadInfo[0].graph         = graph;
+    threadInfo[0].min_part      = min_part;
+
     params.emplace_back(std::move(SimThreadParam(0, threadInfo[0], Simulation_impl::instanceVec)));
 
     try {
@@ -874,25 +865,42 @@ main(int argc, char* argv[])
         ////// Create Simulation Objects //////
         Simulation_impl::instanceVec.resize(world_size.thread);
 
-        for ( uint32_t i = 1; i < world_size.thread; i++ ) {
-            params.emplace_back(std::move(SimThreadParam{i, threadInfo[i], Simulation_impl::instanceVec}));
 #if defined(SST_ENABLE_HPX)
-            threads.emplace_back(std::move(thread_t{start_simulation, std::ref(params[i]), std::ref(mainBarrier)}));
+        for ( uint32_t i = 1; i < world_size.thread; i++ ) {
+            threadInfo[i].myRank        = myRank;
+            threadInfo[i].myRank.thread = i;
+            threadInfo[i].world_size    = world_size;
+            threadInfo[i].config        = &cfg;
+            threadInfo[i].graph         = graph;
+            threadInfo[i].min_part      = min_part;
+
+            params.emplace_back(std::move(SimThreadParam{i, threadInfo[i], Simulation_impl::instanceVec}));
+            threads[i] = hpx::async(start_simulation, std::ref(params[i]), std::ref(mainBarrier));
+        }
+
+        start_simulation(params[0], mainBarrier);
+
+        hpx::wait_all(threads);
 #else
+        for ( uint32_t i = 1; i < world_size.thread; i++ ) {
+            threadInfo[i].myRank        = myRank;
+            threadInfo[i].myRank.thread = i;
+            threadInfo[i].world_size    = world_size;
+            threadInfo[i].config        = &cfg;
+            threadInfo[i].graph         = graph;
+            threadInfo[i].min_part      = min_part;
+
+            params.emplace_back(std::move(SimThreadParam{i, threadInfo[i], Simulation_impl::instanceVec}));
             threads[i] = std::thread(start_simulation, std::ref(params[i]), std::ref(mainBarrier));
-#endif
             Output::setThreadID(threads[i].get_id(), i);
         }
 
         start_simulation(params[0], mainBarrier);
 
         for ( uint32_t i = 1; i < world_size.thread; i++ ) {
-#if defined(SST_ENABLE_HPX)
-            threads[i-1].join();
-#else
             threads[i].join();
-#endif
         }
+#endif
 
         Simulation_impl::shutdown();
     }
@@ -901,6 +909,9 @@ main(int argc, char* argv[])
     }
 
     }
+#if defined(SST_ENABLE_HPX)
+    );
+#endif
 
     double total_end_time = sst_get_cpu_time();
 
@@ -1028,9 +1039,11 @@ main(int argc, char* argv[])
 #ifdef SST_CONFIG_HAVE_MPI
     if ( 0 == myRank.rank ) {
 #endif
+
         // Print out the simulation time regardless of verbosity.
         g_output.output(
             "Simulation is complete, simulated time: %s\n", threadInfo[0].simulated_time.toStringBestSI().c_str());
+
 #ifdef SST_CONFIG_HAVE_MPI
     }
 #endif
@@ -1038,12 +1051,11 @@ main(int argc, char* argv[])
 #ifdef SST_CONFIG_HAVE_MPI
     MPI_Finalize();
 #endif
-/*
+
 #ifdef SST_ENABLE_HPX
-    hpx::apply([]() { hpx::finalize(); });
+    hpx::post([]() { hpx::finalize(); });
     return hpx::stop();
 #else
-*/
     return 0;
-//#endif
+#endif
 }
