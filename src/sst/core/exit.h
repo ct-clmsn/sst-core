@@ -48,6 +48,7 @@ public:
      * shouldn't contain pointers back to Simulation" rule.
      */
     Exit(int num_threads, bool single_rank);
+    Exit()            = default;           // for serialization only
     ~Exit();
 
     /** Increment Reference Count for a given Component ID */
@@ -98,7 +99,6 @@ public:
     void serialize_order(SST::Core::Serialization::serializer& ser) override;
     ImplementSerializable(SST::Exit)
 private:
-    Exit()            = default;           // for serialization only
     Exit(const Exit&) = delete;            // Don't implement
     Exit& operator=(const Exit&) = delete; // Don't implement
 

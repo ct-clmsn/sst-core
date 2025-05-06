@@ -53,17 +53,15 @@ public:
      */
     UnitAlgebra getPeriod() const; // Implemented in timeLord.cc
 
+    TimeConverter(SimTime_t fact) { factor = fact; }
+    TimeConverter() {} // Only needed to simplify serialization
+    ~TimeConverter() {}
+
 private:
     /**
        Factor for converting between core and component time
     */
     SimTime_t factor;
-
-    TimeConverter(SimTime_t fact) { factor = fact; }
-
-    ~TimeConverter() {}
-
-    TimeConverter() {} // Only needed to simplify serialization
 };
 
 template <>

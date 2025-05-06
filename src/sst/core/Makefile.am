@@ -250,7 +250,7 @@ sst_core_sources = \
 	simulation_impl.h \
 	sst_mpi.h
 
-bin_PROGRAMS = sst sst-info sst-config sst-register
+bin_PROGRAMS = sst sst-info sst-repart sst-config sst-register
 libexec_PROGRAMS = sstsim.x sstinfo.x
 
 sst_info_SOURCES = \
@@ -293,6 +293,24 @@ sst_register_SOURCES = \
 	env/envconfig.h \
 	env/envquery.cc \
 	env/envconfig.cc
+
+sst_repart_LDADD = \
+	-ldl \
+	-lrt \
+	-lz \
+	$(PYTHON_LDFLAGS)
+
+#	repartitioner/repart.cpp
+#	repartitioner/repart.hpp
+
+sst_repart_SOURCES = \
+	timeVortex.h \
+	impl/timevortex/timeVortexPQ.h \
+	impl/timevortex/timeVortexPQ.cc \
+	impl/timevortex/timeVortexBinnedMap.h \
+	impl/timevortex/timeVortexBinnedMap.cc \
+	$(sst_core_sources) \
+	repartitioner/driver.cpp
 
 sstsim_x_SOURCES = \
 	main.cc \

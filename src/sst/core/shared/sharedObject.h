@@ -270,10 +270,14 @@ class SharedObject : public SST::Core::Serialization::serializable
 {
 
 public:
+    static SharedObjectDataManager& getManager() { return manager; }
+
     /**
        Enum of verify types.
     */
     enum verify_type { VERIFY_UNINITIALIZED, FE_VERIFY, INIT_VERIFY, NO_VERIFY };
+
+    static SharedObjectDataManager manager;
 
     SharedObject() {}
     virtual ~SharedObject() {}
@@ -283,7 +287,6 @@ public:
 
 protected:
     friend class SST::Simulation_impl;
-    static SharedObjectDataManager manager;
 
     void incPublishCount(SharedObjectData* data) { data->incPublishCount(); }
 

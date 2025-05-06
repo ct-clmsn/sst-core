@@ -39,13 +39,7 @@ class SSTModelDescription;
  */
 class Config : public ConfigShared, public SST::Core::Serialization::serializable
 {
-
-private:
-    // Main creates the config object
-    friend int ::main(int argc, char** argv);
-    friend class ConfigHelper;
-    friend class SSTModelDescription;
-
+public:
     /**
        Config constructor.  Meant to only be created by main function
      */
@@ -56,6 +50,12 @@ private:
        first_rank_ is no longer needed, so just initialize to false.
      */
     Config() : ConfigShared(true, {}), first_rank_(false) {}
+
+private:
+    // Main creates the config object
+    friend int ::main(int argc, char** argv);
+    friend class ConfigHelper;
+    friend class SSTModelDescription;
 
     //// Functions for use in main
 

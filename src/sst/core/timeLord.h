@@ -76,6 +76,13 @@ public:
      */
     SimTime_t getSimCycles(const std::string& timeString, const std::string& where);
 
+    TimeLord() : initialized(false) {}
+    ~TimeLord();
+
+    std::string getTimeBaseString() { return timeBaseString; }
+
+    void init(const std::string& timeBaseString);
+
 private:
     friend class SST::Simulation;
     friend class SST::Simulation_impl;
@@ -83,14 +90,10 @@ private:
 
     friend int ::main(int argc, char** argv);
 
-    void init(const std::string& timeBaseString);
 
     // Needed by the simulator to turn minPart back into a
     // TimeConverter object.
     TimeConverter* getTimeConverter(SimTime_t simCycles);
-
-    TimeLord() : initialized(false) {}
-    ~TimeLord();
 
     TimeLord(const TimeLord&) = delete;            // Don't Implement
     TimeLord& operator=(const TimeLord&) = delete; // Don't Implement

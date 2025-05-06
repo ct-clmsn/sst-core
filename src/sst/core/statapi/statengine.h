@@ -53,6 +53,15 @@ class StatisticProcessingEngine : public SST::Core::Serialization::serializable
 {
 
 public:
+    StatisticProcessingEngine();
+    ~StatisticProcessingEngine();
+
+    // Outputs are per MPI rank, so have to be static data
+    static std::vector<StatisticOutput*> m_statOutputs;
+
+    void restart(Simulation_impl* sim);
+
+
     /** Called by the Components and Subcomponent to perform a statistic Output.
      * @param stat - Pointer to the statistic.
      * @param EndOfSimFlag - Indicates that the output is occurring at the end of simulation.
@@ -96,15 +105,13 @@ public:
 
     void serialize_order(SST::Core::Serialization::serializer& ser) override;
     ImplementSerializable(SST::Statistics::StatisticProcessingEngine)
+
 private:
     friend class SST::Simulation_impl;
     friend int ::main(int argc, char** argv);
     friend void ::finalize_statEngineConfig();
 
-    StatisticProcessingEngine();
     void setup(Simulation_impl* sim, ConfigGraph* graph);
-    void restart(Simulation_impl* sim);
-    ~StatisticProcessingEngine();
 
     static StatisticOutput* createStatisticOutput(const ConfigStatOutput& cfg);
 
@@ -151,9 +158,6 @@ private:
     uint8_t                     m_statLoadLevel;
     StatisticGroup              m_defaultGroup;
     std::vector<StatisticGroup> m_statGroups;
-
-    // Outputs are per MPI rank, so have to be static data
-    static std::vector<StatisticOutput*> m_statOutputs;
 };
 
 } // namespace Statistics

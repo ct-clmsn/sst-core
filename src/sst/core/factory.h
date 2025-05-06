@@ -306,13 +306,14 @@ public:
      */
     bool isProfilePointValid(const std::string& type, const std::string& point);
 
+    Factory(const std::string& searchPaths);
+    ~Factory();
+
 private:
     friend int ::main(int argc, char** argv);
 
     void notFound(const std::string& baseName, const std::string& type, const std::string& errorMsg);
 
-    Factory(const std::string& searchPaths);
-    ~Factory();
 
     Factory(const Factory&) = delete;            // Don't Implement
     Factory& operator=(const Factory&) = delete; // Don't Implement

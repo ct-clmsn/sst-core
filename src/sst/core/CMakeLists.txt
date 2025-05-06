@@ -68,7 +68,7 @@ add_library(
   params.cc
   pollingLinkQueue.cc
   simulation.cc
-  ssthandler.cc
+  #  ssthandler.cc
   subcomponent.cc
   timeLord.cc
   uninitializedQueue.cc
@@ -82,11 +82,11 @@ add_library(
   profile/syncProfileTool.cc
   profile/profiletool.cc
   serialization/serializable_base.cc
-  serialization/serialize_serializable.cc
+  #serialization/serialize_serializable.cc
   serialization/serializer.cc
   serialization/statics.cc
   interfaces/TestEvent.cc
-  interfaces/simpleMem.cc
+  #interfaces/simpleMem.cc
   interfaces/stdMem.cc
   interfaces/simpleNetwork.cc
   interprocess/ipctunnel.cc
@@ -162,7 +162,7 @@ set(SSTHeaders
     unitAlgebra.h
     warnmacros.h)
 
-target_include_directories(sst-core-lib PUBLIC ${SST_TOP_SRC_DIR}/src)
+target_include_directories(sst-core-lib PUBLIC ${SST_TOP_SRC_DIR}/src Python::Python)
 target_include_directories(sst-core-lib PUBLIC ${sst-core_BINARY_DIR}/src)
 target_compile_definitions(sst-core-lib PUBLIC SST_BUILDING_CORE=1)
 

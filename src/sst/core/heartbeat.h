@@ -36,6 +36,7 @@ public:
     Create a new heartbeat object for the simulation core to show progress
     */
     SimulatorHeartbeat(Config* cfg, int this_rank, Simulation_impl* sim, TimeConverter* period);
+    SimulatorHeartbeat()                          = default;
     ~SimulatorHeartbeat();
 
     // Used to re-schedule the new heartbeat event during restart
@@ -45,7 +46,6 @@ public:
     ImplementSerializable(SST::SimulatorHeartbeat)
 
 private:
-    SimulatorHeartbeat()                          = default;
     SimulatorHeartbeat(const SimulatorHeartbeat&) = delete;
     SimulatorHeartbeat& operator=(const SimulatorHeartbeat&) = delete;
 
