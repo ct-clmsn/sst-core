@@ -563,13 +563,6 @@ int main(int argc, char ** argv) {
       }
    }
 
-   std::uint8_t part_t = 0;
-   if(is_self) { part_t = 0; }
-   else if(is_linear) { part_t = (1 << 0); }
-   else if(is_simple) { part_t = (1 << 1); }
-   else if(is_rrobin) { part_t = (1 << 2); }
-   else if(is_single) { part_t = (1 << 3); }
-
    RankInfo ri;
    ri.rank = std::stoi(arguments.find(n_ranks_argument)->second);
    ri.thread = std::stoi(arguments.find(n_threads_argument)->second);
@@ -580,6 +573,13 @@ int main(int argc, char ** argv) {
       load_checkpoint(path, factory, components, argc, argv, factoryinit);
       factoryinit = false;
    }
+
+   std::uint8_t part_t = 0;
+   if(is_self) { part_t = 0; }
+   else if(is_linear) { part_t = (1 << 0); }
+   else if(is_simple) { part_t = (1 << 1); }
+   else if(is_rrobin) { part_t = (1 << 2); }
+   else if(is_single) { part_t = (1 << 3); }
 
    std::shared_ptr<ConfigGraph> cfgraph;
    repartition(factory, ri, argc, argv, part_t, cfgraph);
